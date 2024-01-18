@@ -15,10 +15,12 @@ namespace GameLab.Controllers
     public class UserController : ControllerBase
     {
         private readonly DataContext _context;
+        private readonly IEmailService _emailService;
 
-        public UserController(DataContext context)
+        public UserController(DataContext context, IEmailService emailService)
         {
             _context = context;
+            _emailService = emailService;   
         }
 
         [HttpPost("register")]
@@ -59,6 +61,16 @@ namespace GameLab.Controllers
             _context.Users.Add(newUser);
             await _context.SaveChangesAsync();
 
+            EmailDto emailDto = new EmailDto
+            {
+                To = newUser.Email,
+                Subject = "New Account",
+                Body = "Your Verification Token is: <a href=\"https://localhost:7267/api/User/Verify?token=" + newUser.VerificationToken + "\">Click here</a>" ,
+            };
+
+            _emailService.SendMail(emailDto);
+
+
             return Ok("Registration successful");
         }
 
@@ -93,7 +105,7 @@ namespace GameLab.Controllers
         }
 
 
-        [HttpPost("verify")]
+        [HttpGet("verify")]
         public async Task<IActionResult> Verify(string token)
         {
 
@@ -102,6 +114,11 @@ namespace GameLab.Controllers
             if (user == null)
             {
                 return BadRequest("Invalid token");
+            }
+
+            if(user.VerifiedAt  != null)
+            {
+                return BadRequest("Alredy verified");
             }
 
             user.VerifiedAt = DateTime.Now;
@@ -120,6 +137,8 @@ namespace GameLab.Controllers
             {
                 return BadRequest("Invalid token");
             }
+
+            
 
             user.PasswordResetToken = CreateRandomToken();
             user.ResetTokenExpries = DateTime.Now.AddDays(1);
