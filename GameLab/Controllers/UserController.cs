@@ -7,6 +7,14 @@ using GameLab.Data;
 using System.Security.Cryptography;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Win32;
+using System.Security.Claims;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
+using System.IdentityModel.Tokens.Jwt;
+using System.Data;
+using GameLab.Services.Token;
+using Microsoft.AspNetCore.Authorization;
+using System.Diagnostics.CodeAnalysis;
 
 namespace GameLab.Controllers
 {
@@ -14,17 +22,25 @@ namespace GameLab.Controllers
     [ApiController]
     public class UserController : ControllerBase
     {
-        private readonly DataContext _context;
+        
         private readonly IEmailService _emailService;
+        private readonly IConfiguration _configuration;
+        private readonly UserManager<User> _userManager;
+        private readonly RoleManager<IdentityRole> _roleManager;
+        private readonly ITokenService _tokenService;
 
-        public UserController(DataContext context, IEmailService emailService)
+        public UserController(IEmailService emailService, IConfiguration configuration, UserManager<User> userManager, ITokenService tokenService, RoleManager<IdentityRole> roleManager)
         {
-            _context = context;
-            _emailService = emailService;   
+           
+            _emailService = emailService;
+            _configuration = configuration;
+            _userManager = userManager;
+            _tokenService = tokenService;
+            _roleManager = roleManager;
         }
 
         [HttpPost("register")]
-        public async Task<IActionResult> Register(UserRegistration register)
+        public async Task<IActionResult> Register([FromBody] UserRegistration register)
         {
 
             if (!ModelState.IsValid)
@@ -32,18 +48,15 @@ namespace GameLab.Controllers
                 return BadRequest("Invalid registration data");
             }
 
-            if (await _context.Users.AnyAsync(u => u.Email == register.Email))
+            if (await _userManager.Users.AnyAsync(u => u.Email == register.Email))
             {
                 return Conflict("User with this email already exists");
             }
 
-            if (await _context.Users.AnyAsync(u => u.Username == register.Username))
+            if (await _userManager.Users.AnyAsync(u => u.UserName == register.UserName))
             {
                 return Conflict("User with this Username already exists");
             }
-
-            CreatePassswordHash (register.Password, out byte[]
-                paswordHash, out byte[] passwordSalt);
 
 
             var newUser = new User
@@ -51,151 +64,202 @@ namespace GameLab.Controllers
                 FirstName = register.FirstName,
                 LastName = register.LastName,
                 Email = register.Email,
-                Username = register.Username,
-                PasswordHash = paswordHash,
-                PasswordSalt = passwordSalt,
-                VerificationToken = CreateRandomToken(),
-              
+                UserName = register.UserName,
             };
 
-            _context.Users.Add(newUser);
-            await _context.SaveChangesAsync();
+            newUser.VerificationToken = await _userManager.GeneratePasswordResetTokenAsync(newUser);
+            var result = await _userManager.CreateAsync(newUser, register.Password);
 
-            EmailDto emailDto = new EmailDto
+            if (result.Succeeded)
             {
-                To = newUser.Email,
-                Subject = "New Account",
-                Body = "Your Verification Token is: <a href=\"https://localhost:7267/api/User/Verify?token=" + newUser.VerificationToken + "\">Click here</a>" ,
-            };
+                if (register.Roles !=null && register.Roles.Any())
+                {
 
-            _emailService.SendMail(emailDto);
+                    foreach (var role in register.Roles)
+                    {
+                        if( await _roleManager.RoleExistsAsync(role))
+                        {
+                             await _userManager.AddToRolesAsync(newUser, register.Roles);
+                        }
+                        else
+                        {
+                           await _userManager.AddToRoleAsync(newUser, "User");
+                        }
+                    }
 
+                    if (result.Succeeded)
+                    {
+                        EmailDto emailDto = new EmailDto
+                        {
+                            To = newUser.Email,
+                            Subject = "New Account",
+                            Body = "Your Verification Token is: <a href=\"https://localhost:7267/api/User/Verify?token=" + newUser.VerificationToken + "\">Click here</a>",
+                        };
 
-            return Ok("Registration successful");
+                        _emailService.SendMail(emailDto);
+
+                        return Ok("Registration successful! Please login."+ newUser.VerificationToken);
+                    }
+                }
+               
+            }
+          
+            return BadRequest("Somthing went wrong");
         }
 
 
         [HttpPost("login")]
-        public async Task<IActionResult> Login(UserLogin login)
+        public async Task<IActionResult> Login([FromBody] UserLogin login)
         {
-
             if (!ModelState.IsValid)
             {
                 return BadRequest("Invalid login data");
             }
 
-            var user = await _context.Users.FirstOrDefaultAsync(u => u.Username == login.Username);
+            var user = await _userManager.Users.FirstOrDefaultAsync(u => u.UserName == login.UserName);
 
             if (user == null)
             {
                 return BadRequest("User not found");
             }
 
-            if (!VerifyPassswordHash(login.Password, user.PasswordHash, user.PasswordSalt))
+           var checkPasword = await _userManager.CheckPasswordAsync(user, login.Password);
+
+            if (!checkPasword)
             {
                 return BadRequest("Password is wrong!");
             }
 
-            if (user.VerifiedAt==null)
+            if (user.VerifiedAt == null)
             {
                 return BadRequest("Not verified!");
             }
 
-            return Ok($"Welcome back, {user.Username}! :)");
+            DateTime now = DateTime.Now;
+            if (user.AccountDateBan==DateTime.MinValue || user.AccountDateBan-now<=TimeSpan.Zero)
+            {
+                if(user.AccountDateBan != DateTime.MinValue)
+                {
+                    user.AccountDateBan= DateTime.MinValue;
+                    await _userManager.UpdateAsync(user);
+                }
+
+
+                var roles = await _userManager.GetRolesAsync(user);
+
+                if (roles == null)
+                {
+                    return BadRequest("Not found role!");
+                }
+
+                var jwtToken = _tokenService.CreateJWTToken(user, roles.ToList());
+
+                string message = $"Welcome back, {user.UserName}! :) ";
+
+                var response = new LoginResponse
+                {
+                    JwtToken = jwtToken,
+                    Message = message
+                };
+
+                return Ok(response);
+            }
+
+            var banTimeLeft = user.AccountDateBan-DateTime.Now;
+            return BadRequest("You are account was baned! Ban time left: "+ banTimeLeft);
         }
 
 
         [HttpGet("verify")]
         public async Task<IActionResult> Verify(string token)
         {
-
-            var user = await _context.Users.FirstOrDefaultAsync(u => u.VerificationToken == token);
+            var user = await _userManager.Users.FirstOrDefaultAsync(u => u.VerificationToken == token);
 
             if (user == null)
             {
                 return BadRequest("Invalid token");
             }
 
-            if(user.VerifiedAt  != null)
+            if (user.VerifiedAt  != null)
             {
                 return BadRequest("Alredy verified");
             }
 
             user.VerifiedAt = DateTime.Now;
-            await _context.SaveChangesAsync();
+            await _userManager.UpdateAsync(user);
 
             return Ok("User verified! :)");
         }
+
+        [HttpGet("egy")]
+        [Authorize(Roles ="User")]
+        public async Task<IActionResult> Egy()
+        {
+            return Ok("User ok");
+        }
+
+        [HttpGet("ketto")]
+        [Authorize(Roles = "Moderator")]
+        public async Task<IActionResult> Ketto()
+        {
+            return Ok("Moderator ok");
+        }
+
+        [HttpGet("harom")]
+        [Authorize(Roles = "Admin, Moderator")]
+        public async Task<IActionResult> Harom()
+        {
+            return Ok("Admin ok");
+        }
+
 
         [HttpPost("forgot-password")]
         public async Task<IActionResult> ForgotPassword(string email)
         {
 
-            var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == email);
+            var user = await _userManager.Users.FirstOrDefaultAsync(u => u.Email == email);
 
             if (user == null)
             {
-                return BadRequest("Invalid token");
+                return BadRequest("User with this email not found");
             }
 
-            
-
-            user.PasswordResetToken = CreateRandomToken();
+            user.PasswordResetToken = await _userManager.GeneratePasswordResetTokenAsync(user);
             user.ResetTokenExpries = DateTime.Now.AddDays(1);
-            await _context.SaveChangesAsync();
+            await _userManager.UpdateAsync(user);
 
-            return Ok("You may now reset your password.");
+            EmailDto emailDto = new EmailDto
+            {
+                To = user.Email,
+                Subject = "Reset Password",
+                Body = "Your ResetVerification Token is " + user.PasswordResetToken + ": <a href=\"https://localhost:7267/api/User/reset-password\">Click here</a>",
+            };
+
+            _emailService.SendMail(emailDto);
+
+            return Ok("You may now reset your password."+user.PasswordResetToken);
         }
+
 
         [HttpPost("reset-password")]
         public async Task<IActionResult> ResetPassword(ResetPassword resetPassword)
         {
 
-            var user = await _context.Users.FirstOrDefaultAsync(u => u.PasswordResetToken == resetPassword.Token);
+            var user = await _userManager.Users.FirstOrDefaultAsync(u => u.PasswordResetToken == resetPassword.Token);
 
             if (user == null || user.ResetTokenExpries < DateTime.Now)
             {
                 return BadRequest("Invalid token");
             }
 
-
-            CreatePassswordHash(resetPassword.Password, out byte[]
-                paswordHash, out byte[] passwordSalt);
-
-            user.PasswordHash = paswordHash;
-            user.PasswordSalt = passwordSalt;
             user.PasswordResetToken = null;
             user.ResetTokenExpries = null;
 
-            await _context.SaveChangesAsync();
+            await _userManager.UpdateAsync(user);
 
             return Ok("Password successfully reset.");
         }
 
-        private void CreatePassswordHash (string password, out byte[]
-                passwordHash, out byte[] passwordSalt)
-        {
-            using(var hmac = new HMACSHA512())
-            {
-                passwordSalt = hmac.Key;
-                passwordHash = hmac.ComputeHash(System.Text.Encoding.UTF8.GetBytes(password));
-            }
-        }
 
-        private bool VerifyPassswordHash(string password,  byte[]
-                passwordHash,  byte[] passwordSalt)
-        {
-            using (var hmac = new HMACSHA512(passwordSalt))
-            {
-               var computedHash  = hmac
-               .ComputeHash(System.Text.Encoding.UTF8.GetBytes(password));
-               return computedHash.SequenceEqual(passwordHash);
-            }
-        }
-
-        private string CreateRandomToken()
-        {
-            return Convert.ToHexString(RandomNumberGenerator.GetBytes(64));
-        }
     }
 }

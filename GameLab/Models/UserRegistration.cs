@@ -19,7 +19,7 @@ namespace GameLab.Models
 
         [Required(ErrorMessage = "Username is required")]
         [MaxLength(50)]
-        public string Username { get; set; }
+        public string UserName { get; set; }
 
         [Required(ErrorMessage = "Password is required")]
         [MaxLength(100, ErrorMessage = "Password must be at most 100 characters long")]
@@ -28,5 +28,7 @@ namespace GameLab.Models
         [Required(ErrorMessage = "Confirm password is required")]
         [Compare("Password", ErrorMessage = "Passwords do not match")]
         public string ConfirmPassword { get; set; }
+
+        public string[] Roles { get; set; }
     }
 }
