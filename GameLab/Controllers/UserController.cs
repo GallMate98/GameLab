@@ -70,41 +70,32 @@ namespace GameLab.Controllers
             newUser.VerificationToken = await _userManager.GeneratePasswordResetTokenAsync(newUser);
             var result = await _userManager.CreateAsync(newUser, register.Password);
 
-            if (result.Succeeded)
+            if(!result.Succeeded)
             {
-                if (register.Roles !=null && register.Roles.Any())
-                {
-
-                    foreach (var role in register.Roles)
-                    {
-                        if( await _roleManager.RoleExistsAsync(role))
-                        {
-                             await _userManager.AddToRolesAsync(newUser, register.Roles);
-                        }
-                        else
-                        {
-                           await _userManager.AddToRoleAsync(newUser, "User");
-                        }
-                    }
-
-                    if (result.Succeeded)
-                    {
-                        EmailDto emailDto = new EmailDto
-                        {
-                            To = newUser.Email,
-                            Subject = "New Account",
-                            Body = "Your Verification Token is: <a href=\"https://localhost:7267/api/User/Verify?token=" + newUser.VerificationToken + "\">Click here</a>",
-                        };
-
-                        _emailService.SendMail(emailDto);
-
-                        return Ok("Registration successful! Please login."+ newUser.VerificationToken);
-                    }
-                }
-               
+                var errorDescription = result.Errors.ToList()[0].Description;
+                return BadRequest(errorDescription);
             }
-          
-            return BadRequest("Somthing went wrong");
+
+           
+                await _userManager.AddToRoleAsync(newUser, "User");
+             
+             if (!result.Succeeded)
+             {
+                return BadRequest("Somthing went wrong");
+             }
+
+            EmailDto emailDto = new EmailDto
+            {
+                To = newUser.Email,
+                Subject = "New Account",
+                Body = "Your Verification Token is: <a href=\"https://localhost:7267/api/User/Verify?token=" + newUser.VerificationToken + "\">Click here</a>",
+            };
+
+            _emailService.SendMail(emailDto);
+
+            return Ok("Registration successful! Please login."+ newUser.VerificationToken);
+
+           
         }
 
 
@@ -191,26 +182,7 @@ namespace GameLab.Controllers
             return Ok("User verified! :)");
         }
 
-        [HttpGet("egy")]
-        [Authorize(Roles ="User")]
-        public async Task<IActionResult> Egy()
-        {
-            return Ok("User ok");
-        }
-
-        [HttpGet("ketto")]
-        [Authorize(Roles = "Moderator")]
-        public async Task<IActionResult> Ketto()
-        {
-            return Ok("Moderator ok");
-        }
-
-        [HttpGet("harom")]
-        [Authorize(Roles = "Admin, Moderator")]
-        public async Task<IActionResult> Harom()
-        {
-            return Ok("Admin ok");
-        }
+      
 
 
         [HttpPost("forgot-password")]
@@ -242,23 +214,55 @@ namespace GameLab.Controllers
 
 
         [HttpPost("reset-password")]
-        public async Task<IActionResult> ResetPassword(ResetPassword resetPassword)
+        public async Task<IActionResult> ResetPassword(ResetPassword resetPassword, string token)
         {
 
-            var user = await _userManager.Users.FirstOrDefaultAsync(u => u.PasswordResetToken == resetPassword.Token);
+            var user = await _userManager.Users.FirstOrDefaultAsync(u => u.PasswordResetToken == token);
 
             if (user == null || user.ResetTokenExpries < DateTime.Now)
             {
                 return BadRequest("Invalid token");
             }
 
+
+            if (string.IsNullOrEmpty(resetPassword.Password))
+            {
+                return BadRequest("New password is required");
+            }
+
+         
+            var hashedNewPassword = _userManager.PasswordHasher.HashPassword(user, resetPassword.Password);
+
+            user.PasswordHash = hashedNewPassword;
+
             user.PasswordResetToken = null;
             user.ResetTokenExpries = null;
-
             await _userManager.UpdateAsync(user);
 
             return Ok("Password successfully reset.");
         }
+
+
+        //[HttpGet("egy")]
+        //[Authorize(Roles ="User")]
+        //public async Task<IActionResult> Egy()
+        //{
+        //    return Ok("User ok");
+        //}
+
+        //[HttpGet("ketto")]
+        //[Authorize(Roles = "Moderator")]
+        //public async Task<IActionResult> Ketto()
+        //{
+        //    return Ok("Moderator ok");
+        //}
+
+        //[HttpGet("harom")]
+        //[Authorize(Roles = "Admin, Moderator")]
+        //public async Task<IActionResult> Harom()
+        //{
+        //    return Ok("Admin ok");
+        //}
 
 
     }

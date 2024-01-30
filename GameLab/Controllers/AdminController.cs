@@ -133,7 +133,7 @@ namespace GameLab.Controllers
 
         [HttpPut("acount-ban")]
         [Authorize(Roles = "Admin")]
-        public async Task<IActionResult> AcountBan(UpdatePermission update)
+        public async Task<IActionResult> AccountBan(UpdatePermission update)
         {
             var user = await _userManager.FindByNameAsync(update.UserName);
 

@@ -11,11 +11,11 @@ namespace GameLab.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
-    public class UpadteSettingUserController : ControllerBase
+    public class UpdateSettingUserController : ControllerBase
     {
         private readonly UserManager<User> _userManager;
 
-        public UpadteSettingUserController(UserManager<User> userManager)
+        public UpdateSettingUserController(UserManager<User> userManager)
         {
             _userManager = userManager;
         }
@@ -37,9 +37,9 @@ namespace GameLab.Controllers
         }
 
 
-        [HttpPut]
+        [HttpPut("update-mydata")]
         [Authorize]
-        public async Task<IActionResult> UpdateUser(UpdateUser updateuser)
+        public async Task<IActionResult> UpdateMyAccount(UpdateUser updateuser)
         {
             var userEmail = User.FindFirstValue(ClaimTypes.Email);
 
@@ -67,18 +67,18 @@ namespace GameLab.Controllers
             return Ok("User update succesfully");
         }
 
-        // DELETE: api/user
-        [HttpDelete]
+        
+        [HttpDelete("delete_myaccount")]
         [Authorize]
-        public async Task<IActionResult> DeleteCurrentUser()
+        public async Task<IActionResult> DeleteMyAccount()
         {
-            var userEmail = User.FindFirstValue(ClaimTypes.Email); // Azonosító lekérése a JWT tokentől
+            var userEmail = User.FindFirstValue(ClaimTypes.Email);
 
-            var user = await _userManager.FindByEmailAsync(userEmail); // Felhasználó lekérése az azonosító alapján
+            var user = await _userManager.FindByEmailAsync(userEmail); 
 
             if (user == null)
             {
-                return NotFound("User not found or already deleted"); // Nem található felhasználó
+                return NotFound("User not found or already deleted"); 
             }
 
            await  _userManager.DeleteAsync(user);
