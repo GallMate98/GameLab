@@ -201,7 +201,7 @@ namespace GameLab.Controllers
             {
                 To = user.Email,
                 Subject = "Reset Password",
-                Body = "Your ResetVerification Token is " + user.PasswordResetToken + ": <a href=\"https://localhost:7267/api/User/reset-password\">Click here</a>",
+                Body = "Your ResetVerification Token is : <a href=\"https://localhost:7267/api/User/reset-password?token="+WebUtility.UrlEncode(user.PasswordResetToken)+"\" > Click here</a>",
             };
 
             _emailService.SendMail(emailDto);
