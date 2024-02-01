@@ -15,6 +15,7 @@ using System.Data;
 using GameLab.Services.Token;
 using Microsoft.AspNetCore.Authorization;
 using System.Diagnostics.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace GameLab.Controllers
 {
@@ -67,7 +68,9 @@ namespace GameLab.Controllers
                 UserName = register.UserName,
             };
 
-            newUser.VerificationToken = await _userManager.GeneratePasswordResetTokenAsync(newUser);
+            var token = await _userManager.GeneratePasswordResetTokenAsync(newUser);
+            var trimmedToken = token.Substring(0, 30); 
+            newUser.VerificationToken = trimmedToken;
             var result = await _userManager.CreateAsync(newUser, register.Password);
 
             if(!result.Succeeded)
@@ -166,20 +169,22 @@ namespace GameLab.Controllers
         {
             var user = await _userManager.Users.FirstOrDefaultAsync(u => u.VerificationToken == token);
 
+            
             if (user == null)
             {
-                return BadRequest("Invalid token");
+                return BadRequest(new { message = "Invalid token " });
             }
 
             if (user.VerifiedAt  != null)
             {
-                return BadRequest("Alredy verified");
+                return BadRequest(new { message = "Alredy verified " });
             }
 
             user.VerifiedAt = DateTime.Now;
             await _userManager.UpdateAsync(user);
 
-            return Ok("User verified! :)");
+            return Ok(new { message = "User verified! :)" });
+
         }
 
       
