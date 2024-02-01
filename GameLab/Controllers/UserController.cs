@@ -16,6 +16,7 @@ using GameLab.Services.Token;
 using Microsoft.AspNetCore.Authorization;
 using System.Diagnostics.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using System.Net;
 
 namespace GameLab.Controllers
 {
@@ -68,9 +69,7 @@ namespace GameLab.Controllers
                 UserName = register.UserName,
             };
 
-            var token = await _userManager.GeneratePasswordResetTokenAsync(newUser);
-            var trimmedToken = token.Substring(0, 30); 
-            newUser.VerificationToken = trimmedToken;
+            newUser.VerificationToken = await _userManager.GeneratePasswordResetTokenAsync(newUser);
             var result = await _userManager.CreateAsync(newUser, register.Password);
 
             if(!result.Succeeded)
@@ -91,16 +90,13 @@ namespace GameLab.Controllers
             {
                 To = newUser.Email,
                 Subject = "New Account",
-                Body = "Your Verification Token is: <a href=\"https://localhost:7267/api/User/Verify?token=" + newUser.VerificationToken + "\">Click here</a>",
+                Body = "Your Verification Token is: <a href=\"http://localhost:3000/verify?token=" + WebUtility.UrlEncode(newUser.VerificationToken) + "\">Click here</a>",
             };
 
             _emailService.SendMail(emailDto);
 
             return Ok("Registration successful! Please login."+ newUser.VerificationToken);
-
-           
         }
-
 
         [HttpPost("login")]
         public async Task<IActionResult> Login([FromBody] UserLogin login)
@@ -163,7 +159,6 @@ namespace GameLab.Controllers
             return BadRequest("You are account was baned! Ban time left: "+ banTimeLeft);
         }
 
-
         [HttpGet("verify")]
         public async Task<IActionResult> Verify(string token)
         {
@@ -186,9 +181,6 @@ namespace GameLab.Controllers
             return Ok(new { message = "User verified! :)" });
 
         }
-
-      
-
 
         [HttpPost("forgot-password")]
         public async Task<IActionResult> ForgotPassword(string email)
@@ -217,7 +209,6 @@ namespace GameLab.Controllers
             return Ok("You may now reset your password."+user.PasswordResetToken);
         }
 
-
         [HttpPost("reset-password")]
         public async Task<IActionResult> ResetPassword(ResetPassword resetPassword, string token)
         {
@@ -235,7 +226,6 @@ namespace GameLab.Controllers
                 return BadRequest("New password is required");
             }
 
-         
             var hashedNewPassword = _userManager.PasswordHasher.HashPassword(user, resetPassword.Password);
 
             user.PasswordHash = hashedNewPassword;
@@ -246,29 +236,5 @@ namespace GameLab.Controllers
 
             return Ok("Password successfully reset.");
         }
-
-
-        //[HttpGet("egy")]
-        //[Authorize(Roles ="User")]
-        //public async Task<IActionResult> Egy()
-        //{
-        //    return Ok("User ok");
-        //}
-
-        //[HttpGet("ketto")]
-        //[Authorize(Roles = "Moderator")]
-        //public async Task<IActionResult> Ketto()
-        //{
-        //    return Ok("Moderator ok");
-        //}
-
-        //[HttpGet("harom")]
-        //[Authorize(Roles = "Admin, Moderator")]
-        //public async Task<IActionResult> Harom()
-        //{
-        //    return Ok("Admin ok");
-        //}
-
-
     }
 }
