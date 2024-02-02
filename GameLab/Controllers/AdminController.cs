@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace GameLab.Controllers
 {
@@ -16,6 +17,60 @@ namespace GameLab.Controllers
         public AdminController(UserManager<User> userManager) 
         {
             _userManager = userManager;
+        }
+
+
+        [HttpGet("getAllModerators")]
+        [Authorize(Roles ="Admin, Moderator")]
+        public async Task <IActionResult> GetAllModerators()
+        {
+            var users = await _userManager.Users.ToListAsync();
+            List<User> userIsModerator = new List<User>();
+            foreach (var user in users)
+            {
+             var  userRoles = await _userManager.GetRolesAsync(user);
+                foreach (var role in userRoles)
+                {
+                    if(role == "Moderator")
+                    {
+                        userIsModerator.Add(user);
+                    }
+                }
+
+            }
+            if (userIsModerator.Any())
+            {
+                return Ok(userIsModerator);
+            }
+
+            return BadRequest("Database empty!");
+        }
+
+
+        [HttpGet("getAllAdmins")]
+        [Authorize(Roles ="Admin")]
+        public async Task<IActionResult> GetAllAdmins()
+        {
+            var users = await _userManager.Users.ToListAsync();
+            List<User> userIsAdmin = new List<User>();
+            foreach (var user in users)
+            {
+                var userRoles = await _userManager.GetRolesAsync(user);
+                foreach (var role in userRoles)
+                {
+                    if (role == "Admin")
+                    {
+                        userIsAdmin.Add(user);
+                    }
+                }
+
+            }
+            if (userIsAdmin.Any())
+            {
+                return Ok(userIsAdmin);
+            }
+
+            return BadRequest("Database empty!");
         }
 
         [HttpPut("addAdminRole")]
@@ -76,7 +131,7 @@ namespace GameLab.Controllers
 
 
         [HttpPut("addModeratorRole")]
-        [Authorize(Roles = "Moderator")]
+        //[Authorize(Roles = "Admin")]
         public async Task<IActionResult> MakeModeratorRole(UpdatePermission update)
         {
             var user = await _userManager.FindByNameAsync(update.UserName);
@@ -132,7 +187,7 @@ namespace GameLab.Controllers
         }
 
         [HttpPut("acount-ban")]
-        [Authorize(Roles = "Admin")]
+        [Authorize(Roles = "Admin, Moderator")]
         public async Task<IActionResult> AccountBan(UpdatePermission update)
         {
             var user = await _userManager.FindByNameAsync(update.UserName);

@@ -46,7 +46,7 @@ namespace GameLab.Controllers
         }
 
         [HttpDelete("delete-user")]
-        [Authorize(Roles = "Moderator,Admin")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> DeleteUser(UpdatePermission update)
         {
             var user = await _userManager.FindByNameAsync(update.UserName);

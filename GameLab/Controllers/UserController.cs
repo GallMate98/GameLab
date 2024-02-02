@@ -95,7 +95,7 @@ namespace GameLab.Controllers
 
             _emailService.SendMail(emailDto);
 
-            return Ok("Registration successful! Please login."+ newUser.VerificationToken);
+            return Ok("Registration successful! Please login.");
         }
 
         [HttpPost("login")]
@@ -201,12 +201,12 @@ namespace GameLab.Controllers
             {
                 To = user.Email,
                 Subject = "Reset Password",
-                Body = "Your ResetVerification Token is : <a href=\"https://localhost:7267/api/User/reset-password?token="+WebUtility.UrlEncode(user.PasswordResetToken)+"\" > Click here</a>",
+                Body = "Your ResetVerification Token is : <a href=\"http://localhost:3000/reset-password?token="+WebUtility.UrlEncode(user.PasswordResetToken)+"\" > Click here</a>",
             };
 
             _emailService.SendMail(emailDto);
 
-            return Ok("You may now reset your password."+user.PasswordResetToken);
+            return Ok("You may now reset your password.");
         }
 
         [HttpPost("reset-password")]
