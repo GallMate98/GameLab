@@ -1,6 +1,7 @@
 global using GameLab.Services.Email;
 using GameLab.Data;
 using GameLab.Models;
+using GameLab.Services.LobbyAssignment;
 using GameLab.Services.Token;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
@@ -22,7 +23,7 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("CorsPolicy", policy =>
     {
-        policy.AllowAnyHeader().AllowAnyMethod().WithOrigins("http://localhost:3000");
+        policy.AllowAnyHeader().AllowAnyMethod().WithOrigins("http://localhost:3000").AllowCredentials();
     });
 });
 
@@ -41,6 +42,7 @@ builder.Services.AddSwaggerGen(options =>
 });
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<ITokenService, TokenService>();
+builder.Services.AddSingleton<ILobbyAssignmentService, LobbyAssignmentService>();
 
 builder.Services.AddIdentityCore<User>()
     .AddRoles<IdentityRole>()
@@ -75,7 +77,8 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJw
          Encoding.UTF8.GetBytes
         (builder.Configuration["Jwt:Key"]))
     };
-}); 
+});
+builder.Services.AddSignalR();
 
 var app = builder.Build();
 
@@ -93,6 +96,8 @@ app.UseCors("CorsPolicy");
 app.UseAuthentication();
 
 app.UseAuthorization();
+
+app.MapHub<LobbyHub>("/lobbyhub");
 
 app.MapControllers();
 

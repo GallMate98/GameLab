@@ -20,6 +20,7 @@ namespace GameLab.Services.Token
             var claims = new List<Claim>();
 
             claims.Add(new Claim(ClaimTypes.Email, user.Email));
+            claims.Add(new Claim(ClaimTypes.Name, user.UserName));
 
             foreach (var role in roles)
             {
