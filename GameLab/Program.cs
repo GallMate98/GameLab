@@ -1,7 +1,11 @@
 global using GameLab.Services.Email;
 using GameLab.Data;
+using GameLab.Hubs;
 using GameLab.Models;
+using GameLab.Services.DataService;
+using GameLab.Services.GameLobbyAssignment;
 using GameLab.Services.LobbyAssignment;
+using GameLab.Services.TicTacToe;
 using GameLab.Services.Token;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
@@ -43,6 +47,9 @@ builder.Services.AddSwaggerGen(options =>
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddSingleton<ILobbyAssignmentService, LobbyAssignmentService>();
+builder.Services.AddSingleton<IGameAssignmentService, GameAssignmentService>();
+builder.Services.AddSingleton<SharedDb>();
+builder.Services.AddSingleton<TicTacToeService>();
 
 builder.Services.AddIdentityCore<User>()
     .AddRoles<IdentityRole>()
@@ -98,6 +105,9 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapHub<LobbyHub>("/lobbyhub");
+app.MapHub<GameHub>("/gamehub");
+app.MapHub<NineMensMorrisHub>("/ninemenshub");
+
 
 app.MapControllers();
 

@@ -79,9 +79,9 @@ namespace GameLab.Controllers
             }
 
            
-                await _userManager.AddToRoleAsync(newUser, "User");
-             
-             if (!result.Succeeded)
+            await _userManager.AddToRoleAsync(newUser, "User");
+
+            if (!result.Succeeded)
              {
                 return BadRequest("Somthing went wrong");
              }
