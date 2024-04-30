@@ -21,5 +21,9 @@ namespace GameLab.Services.DataService
         private readonly ConcurrentDictionary<string, BoardX0> _x0game = new ConcurrentDictionary<string, BoardX0>();
 
         public ConcurrentDictionary<string,BoardX0> X0game => _x0game;
+
+        private readonly ConcurrentDictionary<string, BoardNineMens> _ninemensgame = new ConcurrentDictionary<string, BoardNineMens>();
+
+        public ConcurrentDictionary<string, BoardNineMens> ninemensgame => _ninemensgame;
     }
 }

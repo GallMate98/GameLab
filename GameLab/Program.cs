@@ -5,6 +5,7 @@ using GameLab.Models;
 using GameLab.Services.DataService;
 using GameLab.Services.GameLobbyAssignment;
 using GameLab.Services.LobbyAssignment;
+using GameLab.Services.NineMensMorrisService.cs;
 using GameLab.Services.TicTacToe;
 using GameLab.Services.Token;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -50,6 +51,7 @@ builder.Services.AddSingleton<ILobbyAssignmentService, LobbyAssignmentService>()
 builder.Services.AddSingleton<IGameAssignmentService, GameAssignmentService>();
 builder.Services.AddSingleton<SharedDb>();
 builder.Services.AddSingleton<TicTacToeService>();
+builder.Services.AddSingleton<NineMensMorrisService>();
 
 builder.Services.AddIdentityCore<User>()
     .AddRoles<IdentityRole>()
