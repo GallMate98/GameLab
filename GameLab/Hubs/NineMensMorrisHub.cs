@@ -113,7 +113,16 @@ namespace GameLab.Hubs
                 _sharedDb.ninemensgame.TryAdd(gameLobbyId, new BoardNineMens());
             }
 
-          _nineMensMorrisService.CheckPosition(gameLobbyId, playerName, row, col);
+            BoardNineMens myboard = _sharedDb.ninemensgame[gameLobbyId];
+
+         bool isOk = _nineMensMorrisService.CheckPosition(gameLobbyId, playerName, row, col, myboard);
+
+            Console.WriteLine(myboard); 
+
+            if(isOk)
+            {
+              
+            }
         }
     }
     }

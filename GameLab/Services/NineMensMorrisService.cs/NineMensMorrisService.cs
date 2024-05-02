@@ -10,7 +10,7 @@ namespace GameLab.Services.NineMensMorrisService.cs
         private static string currentPlayer = null;
         private readonly SharedDb _sharedDb;
         
-        public NineMensMorrisService ()
+        public NineMensMorrisService (SharedDb sharedDb)
         {
             _sharedDb = new SharedDb ();
         }
@@ -32,9 +32,8 @@ namespace GameLab.Services.NineMensMorrisService.cs
             }
         }
 
-        public bool CheckPosition(string gameLobbyId, string userName, int row, int col)
+        public bool CheckPosition(string gameLobbyId, string userName, int row, int col, BoardNineMens board)
         {
-           BoardNineMens board = _sharedDb.ninemensgame[gameLobbyId];
             if (userName == currentPlayer)
             {
                 if (row>=0 && row<8 && col>=0 && col<8)
