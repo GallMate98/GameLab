@@ -15,6 +15,10 @@ namespace GameLab.Services.TicTacToe
      private static string player1Name = null;
      private static string player2Name = null;
      private static string currentPlayer = null;
+     private bool gameInPogres = false;
+     private bool existWinner = false;
+     private string winnerPlayer = "";
+
 
         public void SetPlayers(string playerUsername)
         {
@@ -88,6 +92,36 @@ namespace GameLab.Services.TicTacToe
         {
             return currentPlayer;
         }
+
+        public bool GetGameInPogres()
+        {
+            return gameInPogres;
+        }
+        public void SetGameInPogres(bool changeGameInPogres)
+        {
+            gameInPogres = changeGameInPogres;
+        }
+
+        public bool GetWinnerExist()
+        {
+            return existWinner;
+        }
+
+        public void SetWinnerExist(bool ExistWinner)
+        {
+            existWinner = ExistWinner;
+        }
+
+        public string GetWinnerPlayer()
+        {
+            return winnerPlayer;
+        }
+
+        public void SetWinnerPlayer(string player)
+        {
+            winnerPlayer = player;
+        }
+
 
         public string CheckWin(BoardX0 board)
         {

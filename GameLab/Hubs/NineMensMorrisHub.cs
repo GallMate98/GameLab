@@ -19,6 +19,7 @@ namespace GameLab.Hubs
         private readonly SharedDb _sharedDb;
         private readonly NineMensMorrisService _nineMensMorrisService;
         private  List<Player> ordergamelobbyData = new List<Player>();
+       
 
         public NineMensMorrisHub(SharedDb sharedDb, IGameAssignmentService gameAssignmentService, NineMensMorrisService nineMensMorrisService)
         {
@@ -31,10 +32,18 @@ namespace GameLab.Hubs
         }
 
         public async Task JoinNineMensMorrisGameLobby(string gameLobbyId, string playerUserName)
+        
         {
             if (_nineMensMorrisService.GetGameInPogres() == true && _nineMensMorrisService.GetCurrentPlayer != null)
             {
+                string userName = Context.User.FindFirstValue(ClaimTypes.Name);
+
+                var connectionId = Context.ConnectionId;
+
+                _sharedDb.Playerconn[gameLobbyId][userName] = connectionId;
+                await Groups.AddToGroupAsync(Context.ConnectionId, gameLobbyId);
                 GetCurrentBoard(gameLobbyId, playerUserName);
+
             }
             else
             {
@@ -81,6 +90,7 @@ namespace GameLab.Hubs
                     Player starterPlayer = _gameAssignmentService.AddStarterPlayer(GetLobbyData(gameLobbyId));
                     string starterPlayerUserName = starterPlayer.UserName;
                     _nineMensMorrisService.SetPlayers(starterPlayerUserName);
+
                     if (gamelobbyData[0].UserName != starterPlayerUserName)
                     {
                         _nineMensMorrisService.SetPlayers(gamelobbyData[0].UserName);
@@ -132,6 +142,14 @@ namespace GameLab.Hubs
         {
 
             await Clients.Group(lobbyId).SendAsync("ReceiveMessage", userName, message);
+
+            if (!_sharedDb.Messages.ContainsKey(lobbyId))
+            {
+                _sharedDb.Messages.TryAdd(lobbyId, new List<Message>());
+            }
+
+            var newMessage = new Message { userName = userName,  message = message };
+            _sharedDb.Messages[lobbyId].Add(newMessage);
 
         }
 
@@ -231,6 +249,7 @@ namespace GameLab.Hubs
             bool isMill = _nineMensMorrisService.CheckIsMill(myboard, row, col);
             if (isMill)
             {
+                _nineMensMorrisService.SetHaveMillsBeforeRefresh(true);
                 if(myColorIs == "red")
                 {
                     selectedPostions = _nineMensMorrisService.PositionsForSelection('1', myboard);
@@ -240,8 +259,9 @@ namespace GameLab.Hubs
                    selectedPostions = _nineMensMorrisService.PositionsForSelection('0', myboard);
 
                 }
-      
+                _nineMensMorrisService.SetInRefreshSelectedPostion(selectedPostions);
                 await Clients.Group(gameLobbyId).SendAsync("NewPosition", newPlayer, id, position, pieceCount, false);
+               
                
                 await Clients.Client(myConnectionId).SendAsync("SelectedPostions",selectedPostions);
                
@@ -279,7 +299,10 @@ namespace GameLab.Hubs
 
                     if (existPieceMutableRed == false )
                     {
+                        _nineMensMorrisService.SetWinnerExist(true);
+                        _nineMensMorrisService.SetWinnerPlayer(playerName);
                         await Clients.Group(gameLobbyId).SendAsync("AddWinnerPlayer", playerName);
+                      
                     }
                 }
             }
@@ -350,6 +373,8 @@ namespace GameLab.Hubs
             RemovePiecePostionInList(_sharedDb.PiecePositionList, id);
             string newPlayer = _nineMensMorrisService.ChangeCurrentPlayer(playerName);
             await Clients.Group(gameLobbyId).SendAsync("DeletePosition", id, newPlayer);
+            _nineMensMorrisService.SetHaveMillsBeforeRefresh(false);
+            _nineMensMorrisService.ClearInRefreshSelectedPostion();
 
             if(myGamePhase == 2 || myGamePhase == 3)
             {
@@ -363,6 +388,7 @@ namespace GameLab.Hubs
                     if(existPieceMutable == false)
                     {
                         await Clients.Group(gameLobbyId).SendAsync("AddWinnerPlayer", playerName);
+                        _nineMensMorrisService.SetWinnerPlayer(playerName);
                     }
 
                 }
@@ -379,6 +405,8 @@ namespace GameLab.Hubs
                 }
                 if (oppenentPieceCountInBoard < 3)
                 {
+                    _nineMensMorrisService.SetWinnerExist(true);
+                    _nineMensMorrisService.SetWinnerPlayer(playerName);
                     await Clients.Group(gameLobbyId).SendAsync("AddWinnerPlayer", playerName);
                 }
 
@@ -431,6 +459,7 @@ namespace GameLab.Hubs
             bool isMill = _nineMensMorrisService.CheckIsMill(myboard, nextPositionRow, nextPositionCol);
             if (isMill)
             {
+                _nineMensMorrisService.SetHaveMillsBeforeRefresh(true);
                 if (myColorIs == "red")
                 {
                     selectedPostions = _nineMensMorrisService.PositionsForSelection('1', myboard);
@@ -440,7 +469,8 @@ namespace GameLab.Hubs
                     selectedPostions = _nineMensMorrisService.PositionsForSelection('0', myboard);
 
                 }
-             
+
+                _nineMensMorrisService.SetInRefreshSelectedPostion(selectedPostions);
                 await Clients.Group(gameLobbyId).SendAsync("NewPosition", newPlayer, id, position, 0, false);
 
                 await Clients.Client(myConnectionId).SendAsync("SelectedPostions", selectedPostions);
@@ -457,7 +487,10 @@ namespace GameLab.Hubs
 
                 if (existMutablePieceForOpponent == false)
                 {
+                    _nineMensMorrisService.SetWinnerExist(true);
+                    _nineMensMorrisService.SetWinnerPlayer(playerName);
                     await Clients.Group(gameLobbyId).SendAsync("AddWinnerPlayer", playerName);
+                   
                 }
 
             }
@@ -505,6 +538,7 @@ namespace GameLab.Hubs
             bool isMill = _nineMensMorrisService.CheckIsMill(myboard, nextPositionRow, nextPositionCol);
             if (isMill)
             {
+                _nineMensMorrisService.SetHaveMillsBeforeRefresh(true);
                 if (myColorIs == "red")
                 {
                     selectedPostions = _nineMensMorrisService.PositionsForSelection('1', myboard);
@@ -514,7 +548,7 @@ namespace GameLab.Hubs
                     selectedPostions = _nineMensMorrisService.PositionsForSelection('0', myboard);
 
                 }
-               
+                _nineMensMorrisService.SetInRefreshSelectedPostion(selectedPostions);
                 await Clients.Group(gameLobbyId).SendAsync("NewPosition", newPlayer, id, position, 0, false);
 
                 await Clients.Client(myConnectionId).SendAsync("SelectedPostions", selectedPostions);
@@ -573,23 +607,59 @@ namespace GameLab.Hubs
 
         public async Task GetCurrentBoard(string gameLobbyId, string userName)
         {
-
-           ConcurrentDictionary<string,string> myboardState = _sharedDb.PiecePositionList;
+            string myColorIs;
+            List<Message> lobbyMessages = new List<Message>();
+            ConcurrentDictionary<string,string> myboardState = _sharedDb.PiecePositionList;
             string currentPlayer = _nineMensMorrisService.GetCurrentPlayer();
             int phase = _nineMensMorrisService.GetCurrentGamePhase();
             List<Player> gamelobbyData = GetLobbyData(gameLobbyId);
             string firstPlayerUserName = _nineMensMorrisService.GetPlayer1Name();
+            string secondPlayerUserName = _nineMensMorrisService.GetPlayer2Name();
             List<Player> orderGamelobbyData = OrderPlayerList(gamelobbyData, firstPlayerUserName);
             int pieceCountRed = _nineMensMorrisService.GetPlayer1PieceCount();
             int pieceCountGreen = _nineMensMorrisService.GetPlayer2PieceCount();
- 
 
-          
+            if(firstPlayerUserName == userName)
+            {
+                 myColorIs = "red";
+            }
+            else if (secondPlayerUserName == userName)
+            {
+                myColorIs = "green";
+            }
+            else
+            {
+                throw new Exception("Problem");
+            }
 
-            await Clients.Caller.SendAsync("Refresh", myboardState, currentPlayer, phase, orderGamelobbyData, pieceCountRed, pieceCountGreen);
-           
+            if (_sharedDb.Messages.ContainsKey(gameLobbyId))
+            {
+                lobbyMessages = _sharedDb.Messages[gameLobbyId];
 
-         }
+            }
+
+
+            if (_nineMensMorrisService.GetHaveMillsBeforeRefresh() == true)
+            {
+                await Clients.Caller.SendAsync("Refresh", myboardState, userName, phase, orderGamelobbyData, pieceCountRed, pieceCountGreen, myColorIs,false);
+                await Clients.Caller.SendAsync("SelectedPostions", _nineMensMorrisService.GetInRefreshSelectedPostion());
+                await Clients.Caller.SendAsync("RefreshMessages", lobbyMessages);
+            }
+
+            if(_nineMensMorrisService.GetWinnerExist() == true)
+            {
+                string winnerPlayerName = _nineMensMorrisService.GetWinnerPlayer();
+                await Clients.Caller.SendAsync("Refresh", myboardState, winnerPlayerName, phase, orderGamelobbyData, pieceCountRed, pieceCountGreen, myColorIs, true);
+                await Clients.Caller.SendAsync("RefreshMessages", lobbyMessages);
+            }
+            else
+            {
+                await Clients.Caller.SendAsync("Refresh", myboardState, currentPlayer, phase, orderGamelobbyData, pieceCountRed, pieceCountGreen, myColorIs, false);
+                await Clients.Caller.SendAsync("RefreshMessages", lobbyMessages);
+            }
+
+
+        }
 
         public List<Player> OrderPlayerList(List<Player> gamelobbyData, string firstPlayerUserName)
         {

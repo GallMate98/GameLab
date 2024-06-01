@@ -1,4 +1,5 @@
 ﻿using GameLab.Models;
+using Microsoft.AspNetCore.Http.HttpResults;
 
 namespace GameLab.Services.GameLobbyAssignment
 {
@@ -6,7 +7,7 @@ namespace GameLab.Services.GameLobbyAssignment
     {
 
         private readonly List<GameLobby> _gameLobbies;
-
+        
         public GameAssignmentService() 
         {
             _gameLobbies = new List<GameLobby>();
@@ -77,6 +78,38 @@ namespace GameLab.Services.GameLobbyAssignment
             _gameLobbies.Add(newGameLobby);
 
             return newGameLobby;
+        }
+
+
+        public List<Player> RemovePlayer(Guid lobbyId, string userName)
+        {
+            
+            var gameLobby = _gameLobbies.FirstOrDefault(l => l.Id == lobbyId);
+
+            if (gameLobby.Player1.UserName == userName)
+            {
+                 gameLobby.Player1 = null;
+
+            }
+
+            else if (gameLobby.Player2.UserName == userName)
+            {
+              gameLobby.Player2 = null;
+            }
+
+            List<Player> players = new List<Player>();
+            if(gameLobby.Player1 != null)
+            {
+                players.Add(gameLobby.Player1);
+            }
+            else if(gameLobby.Player2 != null)
+            {
+                players.Add(gameLobby.Player2);
+            }
+      
+
+
+            return players;
         }
     }
 }

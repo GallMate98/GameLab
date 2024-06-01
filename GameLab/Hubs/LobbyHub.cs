@@ -153,7 +153,7 @@ public class LobbyHub : Hub
                 _sharedDb.Userconn.Remove(userName,  out userId);
             
 
-            // Itt kezeld a játékossal való kilépést a lobby-ból
+            
             await Groups.RemoveFromGroupAsync(Context.ConnectionId, lobbyId);
             var lobbyData = _lobbyAssignmentService.RemovePlayer(Guid.Parse(lobbyId), userName);
            

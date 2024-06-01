@@ -15,6 +15,10 @@ namespace GameLab.Services.NineMensMorrisService.cs
         private int player2PieceCount = 9;
         private int gamePhase = 1;
         private readonly SharedDb _sharedDb;
+        private List<string> refreshselectedPostion = new List<string>();
+        private bool millPhase = false;
+        private bool existWinner = false;
+        private string winnerPlayer = "";
 
         public NineMensMorrisService(SharedDb sharedDb)
         {
@@ -110,6 +114,52 @@ namespace GameLab.Services.NineMensMorrisService.cs
             return gamePhase;
         }
 
+        public bool GetHaveMillsBeforeRefresh()
+        {
+            return millPhase;
+        }
+
+        public bool GetWinnerExist()
+        {
+            return existWinner;
+        }
+
+        public void SetWinnerExist(bool ExistWinner)
+        {
+            existWinner = ExistWinner;
+        }
+
+        public string GetWinnerPlayer()
+        {
+            return winnerPlayer;
+        }
+
+        public void SetWinnerPlayer(string player)
+        {
+            winnerPlayer = player;
+        }
+
+        public void SetHaveMillsBeforeRefresh(bool setMillPhase)
+        {
+            millPhase = setMillPhase;
+        }
+
+        public List<string> GetInRefreshSelectedPostion()
+        {
+            return refreshselectedPostion;
+        }
+
+        public void SetInRefreshSelectedPostion(List<string> selectedPostion)
+        {
+            refreshselectedPostion = selectedPostion;
+        }
+
+        public void ClearInRefreshSelectedPostion()
+        {
+            refreshselectedPostion.Clear();
+        }
+
+
         public int PieceCount(char pieceType, BoardNineMens myboard)
         {
             int counter = 0;
@@ -164,6 +214,10 @@ namespace GameLab.Services.NineMensMorrisService.cs
         public string GetPlayer1Name()
         {
             return player1Name;
+        }
+        public string GetPlayer2Name()
+        {
+            return player2Name;
         }
         public int GetPlayer1PieceCount()
         {
