@@ -29,5 +29,15 @@ namespace GameLab.Services.DataService
         private readonly ConcurrentDictionary<string, string> _piecePostionsList = new ConcurrentDictionary<string, string>();
         
         public ConcurrentDictionary<string, string> PiecePositionList => _piecePostionsList;
+
+        private readonly ConcurrentDictionary<string, ConcurrentDictionary<string, DateTime>> _moveTime = new ConcurrentDictionary<string, ConcurrentDictionary<string, DateTime>>();
+
+        public ConcurrentDictionary<string, ConcurrentDictionary<string, DateTime>> MoveTime => _moveTime;
+
+        private readonly ConcurrentDictionary<string,  DateTime> _leftGameTime = new ConcurrentDictionary<string, DateTime>();
+
+        public ConcurrentDictionary<string,  DateTime> LeftGameTime => _leftGameTime;
+
+
     }
 }

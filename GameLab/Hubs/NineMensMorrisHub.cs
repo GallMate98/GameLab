@@ -32,7 +32,7 @@ namespace GameLab.Hubs
         }
 
         public async Task JoinNineMensMorrisGameLobby(string gameLobbyId, string playerUserName)
-        
+ 
         {
             if (_nineMensMorrisService.GetGameInPogres() == true && _nineMensMorrisService.GetCurrentPlayer != null)
             {
@@ -645,8 +645,7 @@ namespace GameLab.Hubs
                 await Clients.Caller.SendAsync("SelectedPostions", _nineMensMorrisService.GetInRefreshSelectedPostion());
                 await Clients.Caller.SendAsync("RefreshMessages", lobbyMessages);
             }
-
-            if(_nineMensMorrisService.GetWinnerExist() == true)
+           else if(_nineMensMorrisService.GetWinnerExist() == true)
             {
                 string winnerPlayerName = _nineMensMorrisService.GetWinnerPlayer();
                 await Clients.Caller.SendAsync("Refresh", myboardState, winnerPlayerName, phase, orderGamelobbyData, pieceCountRed, pieceCountGreen, myColorIs, true);

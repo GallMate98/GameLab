@@ -88,24 +88,25 @@ namespace GameLab.Services.GameLobbyAssignment
 
             if (gameLobby.Player1.UserName == userName)
             {
-                 gameLobby.Player1 = null;
+                 gameLobby.Player1.UserName = "";
 
             }
 
             else if (gameLobby.Player2.UserName == userName)
             {
-              gameLobby.Player2 = null;
+              gameLobby.Player2.UserName = "";
             }
 
             List<Player> players = new List<Player>();
-            if(gameLobby.Player1 != null)
+            if(gameLobby.Player1.UserName != "")
             {
                 players.Add(gameLobby.Player1);
             }
-            else if(gameLobby.Player2 != null)
+            else if(gameLobby.Player2.UserName != "")
             {
                 players.Add(gameLobby.Player2);
             }
+
       
 
 

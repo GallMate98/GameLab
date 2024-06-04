@@ -18,8 +18,20 @@ namespace GameLab.Services.TicTacToe
      private bool gameInPogres = false;
      private bool existWinner = false;
      private string winnerPlayer = "";
+     private string playerInCountDown = "";
 
 
+
+        public void Reset ()
+        {
+            player1Name = null;
+            player2Name = null;
+            currentPlayer = null;
+            gameInPogres = false;
+            existWinner = false;
+            winnerPlayer = "";
+            playerInCountDown = "";
+        }
         public void SetPlayers(string playerUsername)
         {
             if(player1Name == null)
@@ -88,7 +100,16 @@ namespace GameLab.Services.TicTacToe
             return currentPlayer;
         }
 
-        public string GetCurrentPlayer ()
+        public string GetPlayerName1()
+        {
+            return player1Name;
+
+        }
+            public string GetPlayerName2()
+        {
+            return player2Name;
+        }
+            public string GetCurrentPlayer ()
         {
             return currentPlayer;
         }
@@ -122,6 +143,15 @@ namespace GameLab.Services.TicTacToe
             winnerPlayer = player;
         }
 
+        public void SetPlayerInCountDown(string player)
+        {
+            playerInCountDown = player;
+        }
+
+        public string GetPlayerInCountDown()
+        {
+            return playerInCountDown;
+        }
 
         public string CheckWin(BoardX0 board)
         {
