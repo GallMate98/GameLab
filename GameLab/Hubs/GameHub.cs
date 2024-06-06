@@ -76,7 +76,7 @@ namespace GameLab.Hubs
                 {
                     string oppPlayerConnectionId = AddPlayerConnectionId(gameLobbyId, playerUserName, false);
                     
-                    _sharedDb.LeftGameTime.TryRemove(playerUserName, out _);
+                   
                     GetCurrentBoard(gameLobbyId, playerUserName);
 
                 }
@@ -230,10 +230,14 @@ namespace GameLab.Hubs
         }
 
 
-        public async Task LeaveLobby(string gameLobbyId, string userName)
+        public async Task LeaveLobby(string gameLobbyId, string userName, int remainsecondes)
             {
             int userCount = -1;
 
+            if(_ticTacToeService.GetWinnerExist() == false)
+            {
+                _sharedDb.Remainsecondes[userName] = remainsecondes;
+            }
 
             if (!string.IsNullOrEmpty(userName))
             {
@@ -263,7 +267,7 @@ namespace GameLab.Hubs
                 }
 
                  string opponentConectionId =  AddPlayerConnectionId(gameLobbyId, userName, false);
-                if(userCount !=0)
+                if(userCount !=0 && _ticTacToeService.GetWinnerExist()==false)
                 {
                   await Clients.Client(opponentConectionId).SendAsync("TimerOpponent",60, userName);
                     _sharedDb.LeftGameTime[userName] = DateTime.Now;
@@ -393,44 +397,65 @@ namespace GameLab.Hubs
                 string winnerPlayer = _ticTacToeService.GetWinnerPlayer();
                 await Clients.Caller.SendAsync("Refresh", myboardState, winnerPlayer, gamelobbyData,true);
                 await Clients.Caller.SendAsync("RefreshMessages", lobbyMessages);
-                
-
-              
-              
+    
             }
             else
             {
                 await Clients.Caller.SendAsync("Refresh", myboardState, currentPlayer, gamelobbyData, false);
                 await Clients.Caller.SendAsync("RefreshMessages", lobbyMessages);
 
-                if(userName == _ticTacToeService.GetPlayerInCountDown())
+
+                if (_sharedDb.LeftGameTime.ContainsKey(userName))
                 {
-                    DateTime lastTime = _sharedDb.MoveTime[gameLobbyId][userName];
-                    DateTime now = DateTime.Now;
-                    TimeSpan duration = lastTime.AddMinutes(1) - now;
+                    DateTime currentTime = DateTime.Now;
+                    DateTime leftTheGameTime = _sharedDb.LeftGameTime[userName];
+                    TimeSpan gameLeftDuration = currentTime - leftTheGameTime;
 
-                    double seconds = duration.TotalSeconds;
-                  
+                    double leftSeconds = gameLeftDuration.TotalSeconds;
 
-                    await Clients.Caller.SendAsync("RefreshCountDown", (int)seconds);
-
-                    bool empty =  _sharedDb.LeftGameTime.IsEmpty;
-
-                    if(!empty)
+                    if ((int)leftSeconds>0)
                     {
-                      var opponent =   _sharedDb.LeftGameTime.FirstOrDefault();
-                        string opponentName = opponent.Key;
-                      DateTime remainTime = opponent.Value;
-                      DateTime currentTime = DateTime.Now;
-
-                        TimeSpan durationOppIneterval = remainTime.AddMinutes(1) - currentTime;
-
-                        double oppseconds = durationOppIneterval.TotalSeconds;
-
-                        await Clients.Caller.SendAsync("TimerOpponent", (int)oppseconds, opponentName);
+                        int remainSeconds = _sharedDb.Remainsecondes[userName];
+                        await Clients.Caller.SendAsync("RefreshCountDown", remainSeconds);
+                        _sharedDb.LeftGameTime.TryRemove(userName, out _);
+                        _sharedDb.Remainsecondes.TryRemove(userName, out _);
                     }
-       
                 }
+                else
+                {
+                    if (userName == _ticTacToeService.GetPlayerInCountDown())
+                    {
+                        DateTime lastTime = _sharedDb.MoveTime[gameLobbyId][userName];
+                        DateTime now = DateTime.Now;
+                        TimeSpan duration = lastTime.AddMinutes(1) - now;
+
+                        double seconds = duration.TotalSeconds;
+
+
+
+
+                        await Clients.Caller.SendAsync("RefreshCountDown", (int)seconds);
+
+                        bool empty = _sharedDb.LeftGameTime.IsEmpty;
+
+                        if (!empty)
+                        {
+                            var opponent = _sharedDb.LeftGameTime.FirstOrDefault();
+                            string opponentName = opponent.Key;
+                            DateTime remainTime = opponent.Value;
+                            DateTime currentTime = DateTime.Now;
+
+                            TimeSpan durationOppIneterval = remainTime.AddMinutes(1) - currentTime;
+
+                            double oppseconds = durationOppIneterval.TotalSeconds;
+
+                            await Clients.Caller.SendAsync("TimerOpponent", (int)oppseconds, opponentName);
+                        }
+
+                    }
+
+                }
+              
               
             }
            

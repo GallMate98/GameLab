@@ -38,6 +38,10 @@ namespace GameLab.Services.DataService
 
         public ConcurrentDictionary<string,  DateTime> LeftGameTime => _leftGameTime;
 
+        private readonly ConcurrentDictionary<string, int> _remainsecondes = new ConcurrentDictionary<string, int>();
+
+        public ConcurrentDictionary<string, int> Remainsecondes => _remainsecondes;
+
 
     }
 }

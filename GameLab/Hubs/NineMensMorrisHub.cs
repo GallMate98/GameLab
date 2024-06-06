@@ -34,8 +34,31 @@ namespace GameLab.Hubs
         public async Task JoinNineMensMorrisGameLobby(string gameLobbyId, string playerUserName)
  
         {
+            bool pogress = _nineMensMorrisService.GetGameInPogres();
             if (_nineMensMorrisService.GetGameInPogres() == true && _nineMensMorrisService.GetCurrentPlayer != null)
             {
+
+                bool leftTheGame = _sharedDb.LeftGameTime.ContainsKey(playerUserName);
+
+                if (leftTheGame == true)
+                {
+                    List<Player> gamelobbyData = GetLobbyData(gameLobbyId);
+                    foreach (Player player in gamelobbyData)
+                    {
+                        if (playerUserName == player.UserName)
+                        {
+                            DateTime now = DateTime.Now;
+                            DateTime liftTheGameTime = _sharedDb.LeftGameTime[playerUserName];
+
+                            if (now - liftTheGameTime <= TimeSpan.FromMinutes(1))
+                            {
+                                string opponentConnectionId = AddOpponentPlayerConnectionId(gameLobbyId, playerUserName);
+                                await Clients.Client(opponentConnectionId).SendAsync("StopTimerOpponent");
+
+                            }
+                        }
+                    }
+                }
                 string userName = Context.User.FindFirstValue(ClaimTypes.Name);
 
                 var connectionId = Context.ConnectionId;
@@ -126,7 +149,14 @@ namespace GameLab.Hubs
 
 
                     await Clients.Group(gameLobbyId).SendAsync("UpdateLobby", gamelobbyData);
+                    if (!_sharedDb.MoveTime.ContainsKey(gameLobbyId))
+                    {
+                        _sharedDb.MoveTime.TryAdd(gameLobbyId, new ConcurrentDictionary<string, DateTime>());
+                    }
                     await Clients.Group(gameLobbyId).SendAsync("StartGame", starterPlayerUserName);
+                    _sharedDb.MoveTime[gameLobbyId][starterPlayerUserName] = DateTime.Now;
+                    string playerConnectionId = AddPlayerConnectionId(gameLobbyId, starterPlayerUserName);
+                    await Clients.Client(playerConnectionId).SendAsync("TimerStart");
                     _nineMensMorrisService.SetGameInPogres(true);
 
                 }
@@ -179,6 +209,24 @@ namespace GameLab.Hubs
             return "No opponent player.";
         }
 
+        private string AddPlayerConnectionId(string gameLobbyId, string playerName)
+        {
+            string opponentPlayerConnectionId = "";
+
+            List<Player> myPlayers = GetLobbyData(gameLobbyId);
+
+            foreach (Player myPlayer in myPlayers)
+            {
+                if (myPlayer.UserName == playerName)
+                {
+                    opponentPlayerConnectionId = _sharedDb.Playerconn[gameLobbyId][myPlayer.UserName];
+                    return opponentPlayerConnectionId;
+                }
+            }
+
+            return "No  player.";
+        }
+
         private int AddOpponentPlayerPieceCount(int myPieceType, BoardNineMens myboard)
         {
             int oppenentPieceCountInBoard;
@@ -191,6 +239,82 @@ namespace GameLab.Hubs
             {
                 oppenentPieceCountInBoard = _nineMensMorrisService.PieceCount('1', myboard);
                 return oppenentPieceCountInBoard;
+            }
+        }
+
+
+        public async Task LeaveLobby(string gameLobbyId, string userName, int remainsecondes)
+        {
+            int userCount = -1;
+
+            if (_nineMensMorrisService.GetWinnerExist() == false)
+            {
+                _sharedDb.Remainsecondes[userName] = remainsecondes;
+            }
+
+            if (!string.IsNullOrEmpty(userName))
+            {
+
+
+                if (_sharedDb.Userconn.TryGetValue(userName, out string? userId))
+                {
+                    _sharedDb.Userconn.Remove(userName, out _);
+                }
+
+                await Groups.RemoveFromGroupAsync(Context.ConnectionId, gameLobbyId);
+
+
+                if (_sharedDb.Playerconn.TryGetValue(gameLobbyId, out var players))
+                {
+
+                    players.TryRemove(userName, out _);
+                    userCount = players.Count;
+                }
+
+
+
+                if (userCount == 0)
+                {
+                    _nineMensMorrisService.Reset();
+                    _sharedDb.Playerconn.Remove(gameLobbyId, out _);
+                }
+
+                string opponentConectionId = AddOpponentPlayerConnectionId( gameLobbyId,userName);
+                if (userCount !=0 && _nineMensMorrisService.GetWinnerExist()==false)
+                {
+                    await Clients.Client(opponentConectionId).SendAsync("TimerOpponent", 60, userName);
+                    _sharedDb.LeftGameTime[userName] = DateTime.Now;
+                }
+            }
+        }
+
+        public async Task TimeOut(string gameLobbyId, string playerName)
+        {
+            DateTime lastTime = DateTime.MinValue;
+            DateTime currentTime = DateTime.Now;
+
+
+            if (_sharedDb.MoveTime.ContainsKey(gameLobbyId))
+            {
+                lastTime = _sharedDb.MoveTime[gameLobbyId][playerName];
+
+            }
+
+            if (currentTime - lastTime >= TimeSpan.FromMinutes(1))
+            {
+                string winner = "";
+                if (playerName != _nineMensMorrisService.GetPlayer1Name())
+                {
+                    winner = _nineMensMorrisService.GetPlayer1Name();
+                }
+                else
+                {
+                    winner = _nineMensMorrisService.GetPlayer2Name();
+                }
+
+                _nineMensMorrisService.SetWinnerExist(true);
+                _nineMensMorrisService.SetWinnerPlayer(winner);
+                await Clients.Group(gameLobbyId).SendAsync("Winner", winner);
             }
         }
 
@@ -244,7 +368,8 @@ namespace GameLab.Hubs
             _sharedDb.PiecePositionList[id] = position;
 
           string  myConnectionId = _sharedDb.Playerconn[gameLobbyId][playerName];
-           
+
+             newPlayer = _nineMensMorrisService.ChangeCurrentPlayer(playerName);
 
             bool isMill = _nineMensMorrisService.CheckIsMill(myboard, row, col);
             if (isMill)
@@ -264,12 +389,20 @@ namespace GameLab.Hubs
                
                
                 await Clients.Client(myConnectionId).SendAsync("SelectedPostions",selectedPostions);
-               
+                await Clients.Caller.SendAsync("StopTimer"); //veszely lehet
+                _sharedDb.MoveTime[gameLobbyId][playerName]= DateTime.Now;
+                await Clients.Caller.SendAsync("TimerStart");
+
             }
             else
             {
-                 newPlayer = _nineMensMorrisService.GetCurrentPlayer();
                 await Clients.Group(gameLobbyId).SendAsync("NewPosition", newPlayer, id, position, pieceCount,true);
+
+                await Clients.Client(myConnectionId).SendAsync("StopTimer");
+                _sharedDb.MoveTime[gameLobbyId][newPlayer]= DateTime.Now;
+                string opponentConnectionId = AddOpponentPlayerConnectionId(gameLobbyId, playerName);
+              await Clients.Client(opponentConnectionId).SendAsync("TimerStart");
+                _nineMensMorrisService.SetPlayerInCountDown(newPlayer);
 
             }
 
@@ -302,7 +435,8 @@ namespace GameLab.Hubs
                         _nineMensMorrisService.SetWinnerExist(true);
                         _nineMensMorrisService.SetWinnerPlayer(playerName);
                         await Clients.Group(gameLobbyId).SendAsync("AddWinnerPlayer", playerName);
-                      
+                        await Clients.Group(gameLobbyId).SendAsync("StopTimer");
+
                     }
                 }
             }
@@ -373,6 +507,11 @@ namespace GameLab.Hubs
             RemovePiecePostionInList(_sharedDb.PiecePositionList, id);
             string newPlayer = _nineMensMorrisService.ChangeCurrentPlayer(playerName);
             await Clients.Group(gameLobbyId).SendAsync("DeletePosition", id, newPlayer);
+            await Clients.Caller.SendAsync("StopTimer"); //veszely lehet
+            _sharedDb.MoveTime[gameLobbyId][newPlayer]= DateTime.Now;
+            string opponentConnectionId = AddOpponentPlayerConnectionId(gameLobbyId, playerName);
+            await Clients.Client(opponentConnectionId).SendAsync("TimerStart");
+            _nineMensMorrisService.SetPlayerInCountDown(newPlayer);
             _nineMensMorrisService.SetHaveMillsBeforeRefresh(false);
             _nineMensMorrisService.ClearInRefreshSelectedPostion();
 
@@ -408,6 +547,7 @@ namespace GameLab.Hubs
                     _nineMensMorrisService.SetWinnerExist(true);
                     _nineMensMorrisService.SetWinnerPlayer(playerName);
                     await Clients.Group(gameLobbyId).SendAsync("AddWinnerPlayer", playerName);
+                    await Clients.Group(gameLobbyId).SendAsync("StopTimer");
                 }
 
             }
@@ -474,12 +614,20 @@ namespace GameLab.Hubs
                 await Clients.Group(gameLobbyId).SendAsync("NewPosition", newPlayer, id, position, 0, false);
 
                 await Clients.Client(myConnectionId).SendAsync("SelectedPostions", selectedPostions);
+                await Clients.Caller.SendAsync("StopTimer"); //veszely lehet
+                _sharedDb.MoveTime[gameLobbyId][playerName]= DateTime.Now;
+                await Clients.Caller.SendAsync("TimerStart");
 
             }
             else
             {
            
                 await Clients.Group(gameLobbyId).SendAsync("NewPosition", newPlayer, id, position, 0, true);
+                await Clients.Caller.SendAsync("StopTimer"); //veszely lehet
+                _sharedDb.MoveTime[gameLobbyId][newPlayer]= DateTime.Now;
+                string opponentConnectionId = AddOpponentPlayerConnectionId(gameLobbyId, playerName);
+                await Clients.Client(opponentConnectionId).SendAsync("TimerStart");
+                _nineMensMorrisService.SetPlayerInCountDown(newPlayer);
                 if (myPieceId<10)
                     existMutablePieceForOpponent = _nineMensMorrisService.NotHaveMutablePiece(myboard, '1');
                 else
@@ -490,7 +638,8 @@ namespace GameLab.Hubs
                     _nineMensMorrisService.SetWinnerExist(true);
                     _nineMensMorrisService.SetWinnerPlayer(playerName);
                     await Clients.Group(gameLobbyId).SendAsync("AddWinnerPlayer", playerName);
-                   
+                    await Clients.Group(gameLobbyId).SendAsync("StopTimer");
+
                 }
 
             }
@@ -552,14 +701,23 @@ namespace GameLab.Hubs
                 await Clients.Group(gameLobbyId).SendAsync("NewPosition", newPlayer, id, position, 0, false);
 
                 await Clients.Client(myConnectionId).SendAsync("SelectedPostions", selectedPostions);
+                await Clients.Caller.SendAsync("StopTimer"); //veszely lehet
+                _sharedDb.MoveTime[gameLobbyId][playerName]= DateTime.Now;
+                await Clients.Caller.SendAsync("TimerStart");
 
             }
             else
             {
              
                 await Clients.Group(gameLobbyId).SendAsync("NewPosition", newPlayer, id, position, 0, true);
+                await Clients.Caller.SendAsync("StopTimer"); //veszely lehet
+                _sharedDb.MoveTime[gameLobbyId][newPlayer]= DateTime.Now;
+                string opponentConnectionId = AddOpponentPlayerConnectionId(gameLobbyId, playerName);
+                await Clients.Client(opponentConnectionId).SendAsync("TimerStart");
+                _nineMensMorrisService.SetPlayerInCountDown(newPlayer);
 
-                
+
+
             }
 
             return true;
@@ -644,6 +802,7 @@ namespace GameLab.Hubs
                 await Clients.Caller.SendAsync("Refresh", myboardState, userName, phase, orderGamelobbyData, pieceCountRed, pieceCountGreen, myColorIs,false);
                 await Clients.Caller.SendAsync("SelectedPostions", _nineMensMorrisService.GetInRefreshSelectedPostion());
                 await Clients.Caller.SendAsync("RefreshMessages", lobbyMessages);
+                RefreshCountDown(gameLobbyId, userName);
             }
            else if(_nineMensMorrisService.GetWinnerExist() == true)
             {
@@ -655,9 +814,64 @@ namespace GameLab.Hubs
             {
                 await Clients.Caller.SendAsync("Refresh", myboardState, currentPlayer, phase, orderGamelobbyData, pieceCountRed, pieceCountGreen, myColorIs, false);
                 await Clients.Caller.SendAsync("RefreshMessages", lobbyMessages);
+                RefreshCountDown(gameLobbyId, userName);
             }
 
 
+        }
+
+        public async Task RefreshCountDown(string gameLobbyId, string userName)
+        {
+
+            if (_sharedDb.LeftGameTime.ContainsKey(userName))
+            {
+                DateTime currentTime = DateTime.Now;
+                DateTime leftTheGameTime = _sharedDb.LeftGameTime[userName];
+                TimeSpan gameLeftDuration = currentTime - leftTheGameTime;
+
+                double leftSeconds = gameLeftDuration.TotalSeconds;
+
+                if ((int)leftSeconds>0)
+                {
+                    int remainSeconds = _sharedDb.Remainsecondes[userName];
+                    await Clients.Caller.SendAsync("RefreshCountDown", remainSeconds);
+                    _sharedDb.LeftGameTime.TryRemove(userName, out _);
+                    _sharedDb.Remainsecondes.TryRemove(userName, out _);
+                }
+            }
+            else
+            {
+                if (userName == _nineMensMorrisService.GetPlayerInCountDown())
+                {
+                    DateTime lastTime = _sharedDb.MoveTime[gameLobbyId][userName];
+                    DateTime now = DateTime.Now;
+                    TimeSpan duration = lastTime.AddMinutes(1) - now;
+
+                    double seconds = duration.TotalSeconds;
+
+
+
+                    await Clients.Caller.SendAsync("RefreshCountDown", (int)seconds);
+
+                    bool empty = _sharedDb.LeftGameTime.IsEmpty;
+
+                    if (!empty)
+                    {
+                        var opponent = _sharedDb.LeftGameTime.FirstOrDefault();
+                        string opponentName = opponent.Key;
+                        DateTime remainTime = opponent.Value;
+                        DateTime currentTime = DateTime.Now;
+
+                        TimeSpan durationOppIneterval = remainTime.AddMinutes(1) - currentTime;
+
+                        double oppseconds = durationOppIneterval.TotalSeconds;
+
+                        await Clients.Caller.SendAsync("TimerOpponent", (int)oppseconds, opponentName);
+                    }
+
+                }
+
+            }
         }
 
         public List<Player> OrderPlayerList(List<Player> gamelobbyData, string firstPlayerUserName)

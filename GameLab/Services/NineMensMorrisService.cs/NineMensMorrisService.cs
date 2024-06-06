@@ -19,10 +19,28 @@ namespace GameLab.Services.NineMensMorrisService.cs
         private bool millPhase = false;
         private bool existWinner = false;
         private string winnerPlayer = "";
+        private string playerInCountDown = "";
 
         public NineMensMorrisService(SharedDb sharedDb)
         {
             _sharedDb = new SharedDb();
+        }
+
+        public void Reset()
+        {
+            player1Name = null;
+            player2Name = null;
+            currentPlayer = null;
+            gameInPogres = false;
+            player1PieceCount = 9;
+            player2PieceCount = 9;
+            gamePhase = 1;
+            SharedDb _sharedDb;
+            refreshselectedPostion = new List<string>();
+            millPhase = false;
+            existWinner = false;
+            winnerPlayer = "";
+            playerInCountDown = "";
         }
 
         public void SetPlayers(string playerUsername)
@@ -227,6 +245,16 @@ namespace GameLab.Services.NineMensMorrisService.cs
         public int GetPlayer2PieceCount()
         {
             return player2PieceCount;
+        }
+
+        public void SetPlayerInCountDown(string player)
+        {
+            playerInCountDown = player;
+        }
+
+        public string GetPlayerInCountDown()
+        {
+            return playerInCountDown;
         }
 
         public string ChangeCurrentPlayer(string currentPlayer)
