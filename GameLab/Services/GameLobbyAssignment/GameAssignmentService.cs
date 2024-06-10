@@ -1,5 +1,10 @@
-﻿using GameLab.Models;
+﻿using GameLab.Data;
+using GameLab.Models;
 using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+
 
 namespace GameLab.Services.GameLobbyAssignment
 {
@@ -21,22 +26,32 @@ namespace GameLab.Services.GameLobbyAssignment
             return gameLobby;
         }
 
-        //public Player RemovePlayer(Guid gameLobbyId, string userName)
-        //{
-        //    var gameLobby = _gameLobbies.FirstOrDefault(l => l.Id == gameLobbyId);
+        public List<Player> ChangeLobbyPalyersScores(Guid gameLobbyId, string winnerPlayerName, int winnerScore, int loserScore)
+        {
+            var gameLobby = _gameLobbies.FirstOrDefault(l => l.Id == gameLobbyId);
 
-       
+            if (gameLobby == null)
+            {
+                throw new Exception("Lobby error");
+            }
+            if (gameLobby.Player1.UserName == winnerPlayerName)
+            {
+                gameLobby.Player1.Score = winnerScore;
+                gameLobby.Player2.Score = loserScore;
+            }
+            else
+            {
+                gameLobby.Player1.Score = loserScore;
+                gameLobby.Player2.Score = winnerScore;
 
-        //    if(userName == gameLobby.Player1.UserName || userName == gameLobby.Player2.UserName)
-        //    {
-        //        return 
-        //    }
+            }
 
+            List<Player> players = new List<Player>();
+            players.Add(gameLobby.Player1);
+            players.Add(gameLobby.Player2);
 
-        //    //lobby.Players.Remove(playerToRemove);
-
-        //    //return lobby.Players;
-        //}
+            return players;
+        }
 
 
         public List<Player> GetLobbyPalyers(Guid gameLobbyId)
@@ -55,6 +70,7 @@ namespace GameLab.Services.GameLobbyAssignment
             return players;
         }
 
+     
         public Player AddStarterPlayer (List<Player> players)
         {
             Random rand = new Random();
@@ -80,37 +96,7 @@ namespace GameLab.Services.GameLobbyAssignment
             return newGameLobby;
         }
 
+        
 
-        public List<Player> RemovePlayer(Guid lobbyId, string userName)
-        {
-            
-            var gameLobby = _gameLobbies.FirstOrDefault(l => l.Id == lobbyId);
-
-            if (gameLobby.Player1.UserName == userName)
-            {
-                 gameLobby.Player1.UserName = "";
-
-            }
-
-            else if (gameLobby.Player2.UserName == userName)
-            {
-              gameLobby.Player2.UserName = "";
-            }
-
-            List<Player> players = new List<Player>();
-            if(gameLobby.Player1.UserName != "")
-            {
-                players.Add(gameLobby.Player1);
-            }
-            else if(gameLobby.Player2.UserName != "")
-            {
-                players.Add(gameLobby.Player2);
-            }
-
-      
-
-
-            return players;
-        }
     }
 }

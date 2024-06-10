@@ -1,6 +1,8 @@
 ﻿using GameLab.Models;
+using GameLab.Repositories;
 using GameLab.Services.DataService;
 using GameLab.Services.GameLobbyAssignment;
+using GameLab.Services.GameScoreCalculator;
 using GameLab.Services.NineMensMorrisService.cs;
 using GameLab.Services.TicTacToe;
 using Microsoft.AspNetCore.Authorization;
@@ -8,6 +10,7 @@ using Microsoft.AspNetCore.SignalR;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Newtonsoft.Json.Linq;
 using System.Collections.Concurrent;
+using System.Reflection;
 using System.Security.Claims;
 
 namespace GameLab.Hubs
@@ -18,17 +21,20 @@ namespace GameLab.Hubs
         private readonly IGameAssignmentService _gameAssignmentService;
         private readonly SharedDb _sharedDb;
         private readonly NineMensMorrisService _nineMensMorrisService;
+        private readonly GameScoreRepository _gameScoreRepository;
+        private readonly IGameScoreCalculatorService _gameScoreCalculatorService;
         private  List<Player> ordergamelobbyData = new List<Player>();
        
 
-        public NineMensMorrisHub(SharedDb sharedDb, IGameAssignmentService gameAssignmentService, NineMensMorrisService nineMensMorrisService)
+
+        public NineMensMorrisHub(SharedDb sharedDb, IGameAssignmentService gameAssignmentService, NineMensMorrisService nineMensMorrisService, GameScoreRepository gameScoreRepository, IGameScoreCalculatorService gameScoreCalculatorService)
         {
 
             _sharedDb = sharedDb;
             _gameAssignmentService = gameAssignmentService;
             _nineMensMorrisService = nineMensMorrisService;
-           
-
+            _gameScoreRepository = gameScoreRepository;
+            _gameScoreCalculatorService = gameScoreCalculatorService;
         }
 
         public async Task JoinNineMensMorrisGameLobby(string gameLobbyId, string playerUserName)
@@ -37,7 +43,7 @@ namespace GameLab.Hubs
             bool pogress = _nineMensMorrisService.GetGameInPogres();
             if (_nineMensMorrisService.GetGameInPogres() == true && _nineMensMorrisService.GetCurrentPlayer != null)
             {
-
+                _nineMensMorrisService.SetPlayerJoined(true);
                 bool leftTheGame = _sharedDb.LeftGameTime.ContainsKey(playerUserName);
 
                 if (leftTheGame == true)
@@ -158,6 +164,7 @@ namespace GameLab.Hubs
                     string playerConnectionId = AddPlayerConnectionId(gameLobbyId, starterPlayerUserName);
                     await Clients.Client(playerConnectionId).SendAsync("TimerStart");
                     _nineMensMorrisService.SetGameInPogres(true);
+                    _nineMensMorrisService.SetPlayerInCountDown(starterPlayerUserName);
 
                 }
             }
@@ -166,7 +173,6 @@ namespace GameLab.Hubs
 
 
         }
-
 
         public async Task SendMessage(string lobbyId, string userName, string message)
         {
@@ -187,9 +193,6 @@ namespace GameLab.Hubs
         {
             return _gameAssignmentService.GetLobbyPalyers(Guid.Parse(gameLobbyId));
         }
-
-
-
 
         private string AddOpponentPlayerConnectionId (string gameLobbyId, string playerName)
         {
@@ -245,47 +248,54 @@ namespace GameLab.Hubs
 
         public async Task LeaveLobby(string gameLobbyId, string userName, int remainsecondes)
         {
-            int userCount = -1;
+            _nineMensMorrisService.SetPlayerJoined(false);
+            await Task.Delay(2000);
 
-            if (_nineMensMorrisService.GetWinnerExist() == false)
+            if (!_nineMensMorrisService.GetPlayerJoined())
             {
-                _sharedDb.Remainsecondes[userName] = remainsecondes;
+                int userCount = -1;
+
+                if (_nineMensMorrisService.GetWinnerExist() == false)
+                {
+                    _sharedDb.Remainsecondes[userName] = remainsecondes;
+                }
+
+                if (!string.IsNullOrEmpty(userName))
+                {
+
+
+                    if (_sharedDb.Userconn.TryGetValue(userName, out string? userId))
+                    {
+                        _sharedDb.Userconn.Remove(userName, out _);
+                    }
+
+                    await Groups.RemoveFromGroupAsync(Context.ConnectionId, gameLobbyId);
+
+
+                    if (_sharedDb.Playerconn.TryGetValue(gameLobbyId, out var players))
+                    {
+
+                        players.TryRemove(userName, out _);
+                        userCount = players.Count;
+                    }
+
+
+
+                    if (userCount == 0)
+                    {
+                        _nineMensMorrisService.Reset();
+                        _sharedDb.Playerconn.Remove(gameLobbyId, out _);
+                    }
+
+                    string opponentConectionId = AddOpponentPlayerConnectionId(gameLobbyId, userName);
+                    if (userCount !=0 && _nineMensMorrisService.GetWinnerExist()==false)
+                    {
+                        await Clients.Client(opponentConectionId).SendAsync("TimerOpponent", 60, userName);
+                        _sharedDb.LeftGameTime[userName] = DateTime.Now;
+                    }
+                }
             }
-
-            if (!string.IsNullOrEmpty(userName))
-            {
-
-
-                if (_sharedDb.Userconn.TryGetValue(userName, out string? userId))
-                {
-                    _sharedDb.Userconn.Remove(userName, out _);
-                }
-
-                await Groups.RemoveFromGroupAsync(Context.ConnectionId, gameLobbyId);
-
-
-                if (_sharedDb.Playerconn.TryGetValue(gameLobbyId, out var players))
-                {
-
-                    players.TryRemove(userName, out _);
-                    userCount = players.Count;
-                }
-
-
-
-                if (userCount == 0)
-                {
-                    _nineMensMorrisService.Reset();
-                    _sharedDb.Playerconn.Remove(gameLobbyId, out _);
-                }
-
-                string opponentConectionId = AddOpponentPlayerConnectionId( gameLobbyId,userName);
-                if (userCount !=0 && _nineMensMorrisService.GetWinnerExist()==false)
-                {
-                    await Clients.Client(opponentConectionId).SendAsync("TimerOpponent", 60, userName);
-                    _sharedDb.LeftGameTime[userName] = DateTime.Now;
-                }
-            }
+          
         }
 
         public async Task TimeOut(string gameLobbyId, string playerName)
@@ -303,7 +313,7 @@ namespace GameLab.Hubs
             if (currentTime - lastTime >= TimeSpan.FromMinutes(1))
             {
                 string winner = "";
-                if (playerName != _nineMensMorrisService.GetPlayer1Name())
+                if (playerName == _nineMensMorrisService.GetPlayer1Name())
                 {
                     winner = _nineMensMorrisService.GetPlayer1Name();
                 }
@@ -312,9 +322,13 @@ namespace GameLab.Hubs
                     winner = _nineMensMorrisService.GetPlayer2Name();
                 }
 
+                List<Player> gameLobbyData = GetLobbyData(gameLobbyId);
+                List<Player> newScores = _gameScoreCalculatorService.CalculateScores(Guid.Parse(gameLobbyId), playerName, gameLobbyData);
                 _nineMensMorrisService.SetWinnerExist(true);
                 _nineMensMorrisService.SetWinnerPlayer(winner);
                 await Clients.Group(gameLobbyId).SendAsync("Winner", winner);
+                await Clients.Group(gameLobbyId).SendAsync("UpdateLobby", newScores);
+                await _gameScoreRepository.ChangeScoreInDatabase(newScores, "Nine Men's Morris");
             }
         }
 
@@ -389,7 +403,7 @@ namespace GameLab.Hubs
                
                
                 await Clients.Client(myConnectionId).SendAsync("SelectedPostions",selectedPostions);
-                await Clients.Caller.SendAsync("StopTimer"); //veszely lehet
+                await Clients.Caller.SendAsync("StopTimer");
                 _sharedDb.MoveTime[gameLobbyId][playerName]= DateTime.Now;
                 await Clients.Caller.SendAsync("TimerStart");
 
@@ -434,8 +448,12 @@ namespace GameLab.Hubs
                     {
                         _nineMensMorrisService.SetWinnerExist(true);
                         _nineMensMorrisService.SetWinnerPlayer(playerName);
+                        List<Player> gameLobbyData = GetLobbyData(gameLobbyId);
+                        List<Player> newScores = _gameScoreCalculatorService.CalculateScores(Guid.Parse(gameLobbyId), playerName, gameLobbyData);
                         await Clients.Group(gameLobbyId).SendAsync("AddWinnerPlayer", playerName);
                         await Clients.Group(gameLobbyId).SendAsync("StopTimer");
+                        await Clients.Group(gameLobbyId).SendAsync("UpdateLobby", newScores);
+                        await _gameScoreRepository.ChangeScoreInDatabase(newScores, "Nine Men's Morris");
 
                     }
                 }
@@ -526,8 +544,14 @@ namespace GameLab.Hubs
 
                     if(existPieceMutable == false)
                     {
+                        List<Player> gameLobbyData = GetLobbyData(gameLobbyId);
+                        List<Player> newScores = _gameScoreCalculatorService.CalculateScores(Guid.Parse(gameLobbyId), playerName, gameLobbyData);
                         await Clients.Group(gameLobbyId).SendAsync("AddWinnerPlayer", playerName);
                         _nineMensMorrisService.SetWinnerPlayer(playerName);
+                        await Clients.Group(gameLobbyId).SendAsync("UpdateLobby", newScores);
+                        await _gameScoreRepository.ChangeScoreInDatabase(newScores, "Nine Men's Morris");
+
+
                     }
 
                 }
@@ -546,8 +570,12 @@ namespace GameLab.Hubs
                 {
                     _nineMensMorrisService.SetWinnerExist(true);
                     _nineMensMorrisService.SetWinnerPlayer(playerName);
+                    List<Player> gameLobbyData = GetLobbyData(gameLobbyId);
+                    List<Player> newScores = _gameScoreCalculatorService.CalculateScores(Guid.Parse(gameLobbyId), playerName, gameLobbyData);
                     await Clients.Group(gameLobbyId).SendAsync("AddWinnerPlayer", playerName);
                     await Clients.Group(gameLobbyId).SendAsync("StopTimer");
+                    await Clients.Group(gameLobbyId).SendAsync("UpdateLobby", newScores);
+                    await _gameScoreRepository.ChangeScoreInDatabase(newScores, "Nine Men's Morris");
                 }
 
             }
@@ -623,7 +651,7 @@ namespace GameLab.Hubs
             {
            
                 await Clients.Group(gameLobbyId).SendAsync("NewPosition", newPlayer, id, position, 0, true);
-                await Clients.Caller.SendAsync("StopTimer"); //veszely lehet
+                await Clients.Caller.SendAsync("StopTimer"); 
                 _sharedDb.MoveTime[gameLobbyId][newPlayer]= DateTime.Now;
                 string opponentConnectionId = AddOpponentPlayerConnectionId(gameLobbyId, playerName);
                 await Clients.Client(opponentConnectionId).SendAsync("TimerStart");
@@ -637,8 +665,12 @@ namespace GameLab.Hubs
                 {
                     _nineMensMorrisService.SetWinnerExist(true);
                     _nineMensMorrisService.SetWinnerPlayer(playerName);
+                    List<Player> gameLobbyData = GetLobbyData(gameLobbyId);
+                    List<Player> newScores = _gameScoreCalculatorService.CalculateScores(Guid.Parse(gameLobbyId), playerName, gameLobbyData);
                     await Clients.Group(gameLobbyId).SendAsync("AddWinnerPlayer", playerName);
                     await Clients.Group(gameLobbyId).SendAsync("StopTimer");
+                    await Clients.Group(gameLobbyId).SendAsync("UpdateLobby", newScores);
+                    await _gameScoreRepository.ChangeScoreInDatabase(newScores, "Nine Men's Morris");
 
                 }
 
@@ -725,42 +757,7 @@ namespace GameLab.Hubs
         }
 
 
-        //public override async Task OnConnectedAsync()
-        //{
-        //    await base.OnConnectedAsync();
-
-        //    string userName = Context.User.FindFirstValue(ClaimTypes.Name);
-
-        //    // Ellenőrizzük, hogy a felhasználó már csatlakozott-e korábban, és frissítjük a játék táblát
-        //    await RefreshBoardForUser(userName);
-        //}
-
-        //public override async Task OnDisconnectedAsync(Exception exception)
-        //{
-        //    await base.OnDisconnectedAsync(exception);
-
-        //    string userName = Context.User.FindFirstValue(ClaimTypes.Name);
-
-        //    // Felhasználó lecsatlakozásakor is frissítjük a játék táblát
-        //    await RefreshBoardForUser(userName);
-        //}
-
-        //private async Task RefreshBoardForUser(string userName)
-        //{
-        //    // Ellenőrizzük, hogy a felhasználó csatlakozott-e valamelyik játékhoz
-        //    if (_sharedDb.Playerconn.Any(entry => entry.Value.ContainsKey(userName)))
-        //    {
-        //        foreach (var gameLobbyId in _sharedDb.Playerconn.Keys)
-        //        {
-        //            if (_sharedDb.Playerconn[gameLobbyId].ContainsKey(userName))
-        //            {
-        //                // Ha a felhasználó már csatlakozott egy játékhoz, frissítjük a játék táblát
-        //                await GetCurrentBoard(gameLobbyId, userName);
-        //                break;
-        //            }
-        //        }
-        //    }
-        //}
+        
 
 
         public async Task GetCurrentBoard(string gameLobbyId, string userName)

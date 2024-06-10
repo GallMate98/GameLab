@@ -1,4 +1,5 @@
-﻿using GameLab.Models;
+﻿using GameLab.Data;
+using GameLab.Models;
 using Microsoft.AspNetCore.Mvc;
 
 namespace GameLab.Services.LobbyAssignment

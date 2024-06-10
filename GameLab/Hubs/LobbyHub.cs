@@ -20,8 +20,8 @@ public class LobbyHub : Hub
     private readonly ILobbyAssignmentService _lobbyAssignmentService;
     private readonly IGameAssignmentService _gameAssignmentService;
     private readonly SharedDb _sharedDb;
-   private readonly DataContext _dataContext;
-    private object senderData;
+    private readonly DataContext _dataContext;
+   // private object senderData;
 
     public LobbyHub(ILobbyAssignmentService lobbyAssignment ,SharedDb sharedDb, DataContext dataContext, IGameAssignmentService gameAssignmentService)
     {
@@ -69,8 +69,7 @@ public class LobbyHub : Hub
 
             await Clients.Client(recevieConnectionId).SendAsync("ReceiveInvate", senderUserName);
         }
-            
-        //await Clients.Group(lobbyId).SendAsync("ReceiveInvate", senderUserName);
+           
 
        
     }
@@ -113,7 +112,6 @@ public class LobbyHub : Hub
             throw new Exception("A játék nem található.");
         }
 
-        // Létrehozunk egy új játékot
         GameLobby gameLobby = _gameAssignmentService.AssignPlayerToGame(receiverPlayer, senderPlayer, game);
         var gameLobbyId = gameLobby.Id.ToString();
 
@@ -126,11 +124,11 @@ public class LobbyHub : Hub
         if (!string.IsNullOrEmpty(senderConnectionId) && !string.IsNullOrEmpty(receiverConnectionId))
         {
            
-           // await Clients.Group(gameLobbyId).SendAsync("StartGame", game)
+       
             LeaveLobby(lobbyId, senderUserName);
             LeaveLobby(lobbyId, receiverUserName);
 
-            // Játék lobby ID elküldése
+           
             await Clients.Client(senderConnectionId).SendAsync("GameId", gameLobbyId);
             await Clients.Client(receiverConnectionId).SendAsync("GameId", gameLobbyId);
         }
@@ -158,7 +156,6 @@ public class LobbyHub : Hub
             var lobbyData = _lobbyAssignmentService.RemovePlayer(Guid.Parse(lobbyId), userName);
            
 
-            // Frissítsd a lobby-t a klienseknek
             await Clients.Group(lobbyId).SendAsync("UpdateLobby", lobbyData);
 
         }
@@ -167,7 +164,7 @@ public class LobbyHub : Hub
 
     public override async Task OnDisconnectedAsync(Exception exception)
     {
-        // Itt végezheted el a szükséges lezáró műveleteket vagy eseményeket
+      
         await base.OnDisconnectedAsync(exception);
     }
 }

@@ -12,13 +12,14 @@ namespace GameLab.Services.TicTacToe
         {
             _sharedDb = sharedDb;
         }
-     private static string player1Name = null;
-     private static string player2Name = null;
-     private static string currentPlayer = null;
+     private static string? player1Name = null;
+     private static string? player2Name = null;
+     private static string? currentPlayer = null;
      private bool gameInPogres = false;
      private bool existWinner = false;
      private string winnerPlayer = "";
      private string playerInCountDown = "";
+     private bool playerJoined = false;
 
 
 
@@ -31,6 +32,7 @@ namespace GameLab.Services.TicTacToe
             existWinner = false;
             winnerPlayer = "";
             playerInCountDown = "";
+            playerJoined = false;
         }
         public void SetPlayers(string playerUsername)
         {
@@ -153,7 +155,18 @@ namespace GameLab.Services.TicTacToe
             return playerInCountDown;
         }
 
-        public string CheckWin(BoardX0 board)
+
+        public bool GetPlayerJoined()
+        {
+            return playerJoined;
+        }
+
+        public void SetPlayerJoined(bool joined)
+        {
+            playerJoined = joined;
+        }
+
+        public string? CheckWin(BoardX0 board)
         {
             
             for (int i = 0; i < 3; i++)

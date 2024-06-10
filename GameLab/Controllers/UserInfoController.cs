@@ -1,4 +1,5 @@
-﻿using GameLab.Models;
+﻿using GameLab.Data;
+using GameLab.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
@@ -12,10 +13,12 @@ namespace GameLab.Controllers
     public class UserInfoController : ControllerBase
     {
         private readonly UserManager<User> _userManager;
+        private readonly DataContext _dataContext;
 
-        public UserInfoController(UserManager<User> userManager)
+        public UserInfoController(DataContext dataContext, UserManager<User> userManager)
         {
             _userManager = userManager;
+            _dataContext = dataContext;
         }
 
         [HttpPost("get-user")]
@@ -43,6 +46,55 @@ namespace GameLab.Controllers
             }
 
             return BadRequest("Database empty!"); 
+        }
+
+        [HttpGet("get-searchUsers")]
+        [Authorize(Roles = "User,Moderator,Admin")]
+        public async Task<IActionResult> SearchUsersAsync(string userNameStart)
+        {
+            if (string.IsNullOrEmpty(userNameStart))
+            {
+                return BadRequest("Username start cannot be empty");
+            }
+            var users = await _userManager.Users.Where(u => u.UserName.StartsWith(userNameStart)).ToListAsync();
+
+            if (!users.Any())
+            {
+                return NotFound("No users found with the given start.");
+            }
+
+            var userWithScores = new List<object>();
+            foreach (var user in users)
+            {
+                var gameUserGameScores = await _dataContext.GameScores.Where(gs => gs.UserId == user.Id).ToListAsync();
+                if (!gameUserGameScores.Any())
+                {
+                    userWithScores.Add(new
+                    {
+                        UserName = user.UserName,
+                        GameName = "No games played yet",
+                        Score = 0
+                    });
+                }
+                else
+                {
+                    foreach (var gameScore in gameUserGameScores)
+                    {
+                        var gameName = await _dataContext.Games.Where(g => g.Id == gameScore.GameId).Select(g => g.Name).FirstOrDefaultAsync();
+
+                        userWithScores.Add(new
+                        {
+                            UserName = user.UserName,
+                            GameName = gameName,
+                            Score = gameScore.Score
+                        });
+                    }
+                }
+            }
+
+            return Ok(userWithScores);
+
+
         }
 
         [HttpDelete("delete-user")]

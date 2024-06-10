@@ -2,8 +2,10 @@ global using GameLab.Services.Email;
 using GameLab.Data;
 using GameLab.Hubs;
 using GameLab.Models;
+using GameLab.Repositories;
 using GameLab.Services.DataService;
 using GameLab.Services.GameLobbyAssignment;
+using GameLab.Services.GameScoreCalculator;
 using GameLab.Services.LobbyAssignment;
 using GameLab.Services.NineMensMorrisService.cs;
 using GameLab.Services.TicTacToe;
@@ -47,9 +49,12 @@ builder.Services.AddSwaggerGen(options =>
 });
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<ITokenService, TokenService>();
+builder.Services.AddScoped<GameScoreRepository>();
+builder.Services.AddScoped<IGameScoreCalculatorService, GameScoreCalculatorService>();
 builder.Services.AddSingleton<ILobbyAssignmentService, LobbyAssignmentService>();
 builder.Services.AddSingleton<IGameAssignmentService, GameAssignmentService>();
 builder.Services.AddSingleton<SharedDb>();
+
 builder.Services.AddSingleton<TicTacToeService>();
 builder.Services.AddSingleton<NineMensMorrisService>();
 

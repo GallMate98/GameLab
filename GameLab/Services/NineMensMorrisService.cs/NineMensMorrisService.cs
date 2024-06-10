@@ -7,9 +7,9 @@ namespace GameLab.Services.NineMensMorrisService.cs
 {
     public class NineMensMorrisService
     {
-        private static string player1Name = null;
-        private static string player2Name = null;
-        private static string currentPlayer = null;
+        private static string? player1Name = null;
+        private static string? player2Name = null;
+        private static string? currentPlayer = null;
         private bool gameInPogres = false;
         private int player1PieceCount = 9;
         private int player2PieceCount = 9;
@@ -20,6 +20,7 @@ namespace GameLab.Services.NineMensMorrisService.cs
         private bool existWinner = false;
         private string winnerPlayer = "";
         private string playerInCountDown = "";
+        private bool playerJoined = false;
 
         public NineMensMorrisService(SharedDb sharedDb)
         {
@@ -41,6 +42,7 @@ namespace GameLab.Services.NineMensMorrisService.cs
             existWinner = false;
             winnerPlayer = "";
             playerInCountDown = "";
+            playerJoined = false;
         }
 
         public void SetPlayers(string playerUsername)
@@ -155,6 +157,17 @@ namespace GameLab.Services.NineMensMorrisService.cs
         public void SetWinnerPlayer(string player)
         {
             winnerPlayer = player;
+        }
+
+
+        public bool GetPlayerJoined()
+        {
+            return playerJoined;
+        }
+
+        public void SetPlayerJoined(bool joined)
+        {
+            playerJoined = joined;
         }
 
         public void SetHaveMillsBeforeRefresh(bool setMillPhase)

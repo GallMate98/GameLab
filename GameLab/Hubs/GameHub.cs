@@ -1,7 +1,9 @@
 ﻿using GameLab.Data;
 using GameLab.Models;
+using GameLab.Repositories;
 using GameLab.Services.DataService;
 using GameLab.Services.GameLobbyAssignment;
+using GameLab.Services.GameScoreCalculator;
 using GameLab.Services.LobbyAssignment;
 using GameLab.Services.NineMensMorrisService.cs;
 using GameLab.Services.TicTacToe;
@@ -21,15 +23,18 @@ namespace GameLab.Hubs
         private readonly IGameAssignmentService _gameAssignmentService;
         private readonly SharedDb _sharedDb;
         private readonly TicTacToeService _ticTacToeService;
-        private bool inTimePhase;
-     
+        private readonly IGameScoreCalculatorService _gameScoreCalculatorService;
+        private readonly GameScoreRepository _gameScoreRepository;
 
-        public GameHub(SharedDb sharedDb,  IGameAssignmentService gameAssignmentService, TicTacToeService ticTacToeService)
+
+        public GameHub(SharedDb sharedDb,  IGameAssignmentService gameAssignmentService, TicTacToeService ticTacToeService,IGameScoreCalculatorService gameScoreCalculatorService, GameScoreRepository gameScoreRepository )
         {
         
             _sharedDb = sharedDb;
             _gameAssignmentService = gameAssignmentService;
             _ticTacToeService = ticTacToeService;
+            _gameScoreCalculatorService = gameScoreCalculatorService;
+            _gameScoreRepository = gameScoreRepository;
 
         }
 
@@ -38,6 +43,7 @@ namespace GameLab.Hubs
 
             if(_ticTacToeService.GetGameInPogres() == true && _ticTacToeService.GetCurrentPlayer != null)
             {
+                _ticTacToeService.SetPlayerJoined(true);
                 bool leftTheGame = _sharedDb.LeftGameTime.ContainsKey(playerUserName);
               
                 if (leftTheGame == true)
@@ -231,52 +237,54 @@ namespace GameLab.Hubs
 
 
         public async Task LeaveLobby(string gameLobbyId, string userName, int remainsecondes)
-            {
-            int userCount = -1;
+        {
+            _ticTacToeService.SetPlayerJoined(false);
+            await Task.Delay(2000); 
 
-            if(_ticTacToeService.GetWinnerExist() == false)
+            if (!_ticTacToeService.GetPlayerJoined())
             {
-                _sharedDb.Remainsecondes[userName] = remainsecondes;
+                int userCount = -1;
+
+                if (_ticTacToeService.GetWinnerExist() == false)
+                {
+                    _sharedDb.Remainsecondes[userName] = remainsecondes;
+                }
+
+                if (!string.IsNullOrEmpty(userName))
+                {
+
+
+                    if (_sharedDb.Userconn.TryGetValue(userName, out string? userId))
+                    {
+                        _sharedDb.Userconn.Remove(userName, out _);
+                    }
+
+                    await Groups.RemoveFromGroupAsync(Context.ConnectionId, gameLobbyId);
+
+
+                    if (_sharedDb.Playerconn.TryGetValue(gameLobbyId, out var players))
+                    {
+                        players.TryRemove(userName, out _);
+                        userCount = players.Count;
+                    }
+
+
+                    if (userCount == 0)
+                    {
+                        _ticTacToeService.Reset();
+                        _sharedDb.Playerconn.Remove(gameLobbyId, out _);
+                    }
+
+                    string opponentConectionId = AddPlayerConnectionId(gameLobbyId, userName, false);
+                    if (userCount !=0 && _ticTacToeService.GetWinnerExist()==false)
+                    {
+                        await Clients.Client(opponentConectionId).SendAsync("TimerOpponent", 60, userName);
+                        _sharedDb.LeftGameTime[userName] = DateTime.Now;
+                    }
+                }
             }
 
-            if (!string.IsNullOrEmpty(userName))
-            {
-
-
-                if (_sharedDb.Userconn.TryGetValue(userName, out string? userId))
-                {
-                    _sharedDb.Userconn.Remove(userName, out _);
-                }
-
-                await Groups.RemoveFromGroupAsync(Context.ConnectionId, gameLobbyId);
- 
-
-                if (_sharedDb.Playerconn.TryGetValue(gameLobbyId, out var players))
-                {
-                   
-                    players.TryRemove(userName, out _);
-                    userCount = players.Count;
-                }
-
-               
-
-                if (userCount == 0)
-                {
-                    _ticTacToeService.Reset();
-                    _sharedDb.Playerconn.Remove(gameLobbyId, out _);
-                }
-
-                 string opponentConectionId =  AddPlayerConnectionId(gameLobbyId, userName, false);
-                if(userCount !=0 && _ticTacToeService.GetWinnerExist()==false)
-                {
-                  await Clients.Client(opponentConectionId).SendAsync("TimerOpponent",60, userName);
-                    _sharedDb.LeftGameTime[userName] = DateTime.Now;
-                }
-              
-                
-
-
-            }
+          
         }
 
         public async Task GamePlay(string gameLobbyId, string playerName, int row, int col)
@@ -310,8 +318,12 @@ namespace GameLab.Hubs
                 {
                     _ticTacToeService.SetWinnerExist(true);
                     _ticTacToeService.SetWinnerPlayer(winner);
+                   List<Player> gameLobbyData = GetLobbyData(gameLobbyId);
+                   List<Player> newScores =  _gameScoreCalculatorService.CalculateScores(Guid.Parse(gameLobbyId), winner, gameLobbyData);
                     await Clients.Group(gameLobbyId).SendAsync("Winner", winner);
                     await Clients.Group(gameLobbyId).SendAsync("StopTimer");
+                    await Clients.Group(gameLobbyId).SendAsync("UpdateLobby", newScores);
+                    await _gameScoreRepository.ChangeScoreInDatabase(newScores, "Tic-tac-toe");
                 }
 
                 bool isDraw = _ticTacToeService.CheckDraw(board);
@@ -353,7 +365,11 @@ namespace GameLab.Hubs
 
                 _ticTacToeService.SetWinnerExist(true);
                 _ticTacToeService.SetWinnerPlayer(winner);
+                List<Player> gameLobbyData =  GetLobbyData(gameLobbyId);
+                List<Player> newScores = _gameScoreCalculatorService.CalculateScores(Guid.Parse(gameLobbyId), winner, gameLobbyData);
                 await Clients.Group(gameLobbyId).SendAsync("Winner", winner);
+                await Clients.Group(gameLobbyId).SendAsync("UpdateLobby", newScores);
+                await _gameScoreRepository.ChangeScoreInDatabase(newScores, "Tic-tac-toe");
             }
 
 
@@ -455,7 +471,6 @@ namespace GameLab.Hubs
                     }
 
                 }
-              
               
             }
            

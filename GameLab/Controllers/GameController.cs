@@ -49,11 +49,6 @@ namespace GameLab.Controllers
                 return NotFound("User not found");
             }
 
-            Player player = new Player()
-            {
-                UserName = user.UserName,
-                Score = 200
-            };
 
             var game = await _dataContext.Games.FirstOrDefaultAsync(g => g.Url == gameUrl);
 
@@ -62,6 +57,33 @@ namespace GameLab.Controllers
             {
                 return NotFound("Game not found");
             }
+
+            var userHaveScore = await _dataContext.GameScores.FirstOrDefaultAsync(g => g.GameId == game.Id && g.UserId == user.Id);
+
+            if (userHaveScore == null)
+            {
+
+                var newScore = new GameScores
+                {
+                    GameId = game.Id,
+                    UserId = user.Id,
+                    Score = 202,
+                };
+            
+                _dataContext.GameScores.Add(newScore);
+                await _dataContext.SaveChangesAsync();
+            }
+
+            var userScore = await _dataContext.GameScores
+             .Where(g => g.GameId == game.Id && g.UserId == user.Id)
+             .Select(g => g.Score)
+             .FirstOrDefaultAsync();
+
+            Player player = new Player()
+            {
+                UserName = user.UserName,
+                Score = userScore
+            };
 
             Lobby lobby =  _lobbyAssigment.AssignPlayerToLobby(player, game);
 

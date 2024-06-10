@@ -5,9 +5,9 @@ namespace GameLab.Models
 {
     public class User : IdentityUser
     {
-        public string FirstName { get; set; }
+        public string? FirstName { get; set; }
 
-        public string LastName { get; set; }
+        public string? LastName { get; set; }
 
         public string? VerificationToken { get; set; }
 
@@ -18,5 +18,7 @@ namespace GameLab.Models
         public DateTime? ResetTokenExpries { get; set; }
 
         public DateTime AccountDateBan { get; set; } = DateTime.MinValue;
+
+        public ICollection<GameScores>? GameScores { get; set; }
     }
 }
